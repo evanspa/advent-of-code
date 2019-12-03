@@ -40,6 +40,26 @@
   (is (== 654 (required-fuel 1969)))
   (is (== 33583 (required-fuel 100756))))
 
+(defn intcode
+  [ints-csv]
+  (loop [result (vec (map #(Integer/parseInt %) (str/split ints-csv #",")))
+         i 0]
+    (let [opcode (nth result i)
+          op (case opcode
+               1 +
+               2 *
+               99 nil
+               "error")]
+      (if (== opcode 99)
+        (reduce #(str %1 "," %2) (first result) (rest result))
+        (if (nil? op)
+          (print "something went wrong")
+          (recur (assoc result
+                        (nth result (+ i 3))
+                        (op (nth result (nth result (+ i 1)))
+                            (nth result (nth result (+ i 2)))))
+                 (+ i 4)))))))
+
 
 
 
