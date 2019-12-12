@@ -104,8 +104,8 @@
                                       value (Integer/parseInt (subs p2 1))
                                       prev-coord (first (last p1))
                                       prev-cum-sum (second (last p1))                                      
-                                      prev-coord-x (x prev-coord)
-                                      prev-coord-y (y prev-coord)]
+                                      prev-coord-x (first prev-coord)
+                                      prev-coord-y (second prev-coord)]
                                   (if (= direction \U)
                                     (map (fn [step] [[prev-coord-x (+ prev-coord-y step)] (+ prev-cum-sum step)])
                                          (range 1 (inc value)))
@@ -240,20 +240,189 @@
   []
   (count (filter is-password-p1 (range 236491 713787 1))))
 
+(defn contains-double
+  [m]
+  (loop [keys (keys m)
+         double-found false]
+    (if (empty? keys)
+      double-found
+      (recur (rest keys) (or double-found
+                             (== (get m (first keys)) 1))))))
+
 (defn is-password-p2
   [x]
   (loop [chars (seq (str x))
-         prev-char nil
-         contains-double false
-         increasing true]
+         prev-char nil         
+         increasing true
+         repeats {0 0 1 0 2 0 3 0 4 0 5 0 6 0 7 0 8 0 9 0}]
     (let [current-char (first chars)]      
       (if (empty? chars)
-        (and contains-double increasing)
+        (and increasing
+             (contains-double repeats))        
         (if (nil? prev-char)
-          (recur (rest chars) current-char contains-double increasing)
+          (recur (rest chars) current-char increasing repeats)
           (let [prev-val (Character/digit prev-char 10)
                 current-val (Character/digit current-char 10)]
-            (recur (rest chars)
-                   current-char
-                   (or contains-double (== prev-val current-val))
-                   (and increasing (<= prev-val current-val)))))))))
+            (let [matches-prev (== prev-val current-val)]
+              (recur (rest chars)
+                     current-char                     
+                     (and increasing (<= prev-val current-val))
+                     (if matches-prev
+                       (update repeats current-val inc)
+                       repeats)))))))))
+
+(defn run-solution-4-p2
+  []
+  (count (filter is-password-p2 (range 236491 713787 1))))
+
+(defn param-modes
+  [opcode-chars]
+  (case (count opcode-chars)
+    5 [(Character/digit (nth opcode-chars 2) 10)
+       (Character/digit (nth opcode-chars 1) 10)
+       (Character/digit (nth opcode-chars 0) 10)]
+    4 [(Character/digit (nth opcode-chars 1) 10)
+       (Character/digit (nth opcode-chars 0) 10)
+       0]
+    3 [(Character/digit (nth opcode-chars 0) 10)
+       0
+       0]
+    2 [0 0 0]
+    1 [0 0 0]))
+
+(defn param-val
+  [inputs i param-mode offset]
+  (if (== param-mode 0)               
+    (nth inputs (nth inputs (+ i offset)))
+    (nth inputs (+ i offset))))
+
+(defn perform-op
+  [inputs i op param-1-mode param-2-mode]
+  (assoc inputs
+         (nth inputs (+ i 3))
+         (op (param-val inputs i param-1-mode 1)
+             (param-val inputs i param-2-mode 2))))
+
+(defn perform-jump
+  [inputs i test param-1-mode param-2-mode]
+  )
+
+(defn intcode-5
+  [inputs input]  
+  (loop [inputs inputs
+         i 0 ; instruction pointer
+         terminate false]
+    (when (not terminate)      
+      (let [opcode-str (str (nth inputs i))
+            opcode-chars (seq opcode-str)]        
+        (cond
+          (str/ends-with? opcode-str "1") ; add
+          (let [[param-1-mode param-2-mode] (param-modes opcode-chars)]
+            (recur (perform-op inputs i + param-1-mode param-2-mode)
+                   (+ i 4)
+                   false))
+          
+          (str/ends-with? opcode-str "2") ; mult
+          (let [[param-1-mode param-2-mode] (param-modes opcode-chars)]
+            (recur (perform-op inputs i * param-1-mode param-2-mode)
+                   (+ i 4)
+                   false))
+
+          (str/ends-with? opcode-str "3") ; read an input val          
+          (recur (assoc inputs (nth inputs (+ i 1)) input)
+                 (+ i 2)
+                 false)
+
+          (str/ends-with? opcode-str "4") ; write
+          (let [[param-1-mode] (param-modes opcode-chars)]            
+            (print (param-val inputs i param-1-mode 1) " ")
+            (recur inputs (+ i 2) false))
+
+          (str/ends-with? opcode-str "5") ; jump-if-true
+          (let [[param-1-mode param-2-mode] (param-modes opcode-chars)]
+            (let [jump-test (param-val inputs i param-1-mode 1)]
+              (if (not (== jump-test 0))
+                (recur inputs (param-val inputs i param-2-mode 2) false)
+                (recur inputs (+ i 3) false))))          
+
+          (str/ends-with? opcode-str "6") ; jump-if-false
+          (let [[param-1-mode param-2-mode] (param-modes opcode-chars)]
+            (let [jump-test (param-val inputs i param-1-mode 1)]
+              (if (== jump-test 0)
+                (recur inputs (param-val inputs i param-2-mode 2) false)
+                (recur inputs (+ i 3) false))))          
+
+          (str/ends-with? opcode-str "7") ; less than
+          (let [[param-1-mode param-2-mode] (param-modes opcode-chars)]            
+            (recur (assoc inputs
+                          (nth inputs (+ i 3))
+                          (if (< (param-val inputs i param-1-mode 1)
+                                 (param-val inputs i param-2-mode 2))
+                            1
+                            0))
+                   (+ i 4)
+                   false))
+
+          (str/ends-with? opcode-str "8") ; equals
+          (let [[param-1-mode param-2-mode] (param-modes opcode-chars)]            
+            (recur (assoc inputs
+                          (nth inputs (+ i 3))
+                          (if (== (param-val inputs i param-1-mode 1)
+                                  (param-val inputs i param-2-mode 2))
+                            1
+                            0))
+                   (+ i 4)
+                   false))
+
+          (str/ends-with? opcode-str "99")
+          (recur nil nil true))))))
+
+(defn intcode-csv-5
+  [ints-csv input]  
+  (intcode-5 (vec (map #(Integer/parseInt %) (str/split ints-csv #","))) input))
+
+(def solution-5-input "3,225,1,225,6,6,1100,1,238,225,104,0,1101,34,7,225,101,17,169,224,1001,224,-92,224,4,224,1002,223,8,223,1001,224,6,224,1,224,223,223,1102,46,28,225,1102,66,83,225,2,174,143,224,1001,224,-3280,224,4,224,1002,223,8,223,1001,224,2,224,1,224,223,223,1101,19,83,224,101,-102,224,224,4,224,102,8,223,223,101,5,224,224,1,223,224,223,1001,114,17,224,1001,224,-63,224,4,224,1002,223,8,223,1001,224,3,224,1,223,224,223,1102,60,46,225,1101,7,44,225,1002,40,64,224,1001,224,-1792,224,4,224,102,8,223,223,101,4,224,224,1,223,224,223,1101,80,27,225,1,118,44,224,101,-127,224,224,4,224,102,8,223,223,101,5,224,224,1,223,224,223,1102,75,82,225,1101,40,41,225,1102,22,61,224,1001,224,-1342,224,4,224,102,8,223,223,1001,224,6,224,1,223,224,223,102,73,14,224,1001,224,-511,224,4,224,1002,223,8,223,101,5,224,224,1,224,223,223,4,223,99,0,0,0,677,0,0,0,0,0,0,0,0,0,0,0,1105,0,99999,1105,227,247,1105,1,99999,1005,227,99999,1005,0,256,1105,1,99999,1106,227,99999,1106,0,265,1105,1,99999,1006,0,99999,1006,227,274,1105,1,99999,1105,1,280,1105,1,99999,1,225,225,225,1101,294,0,0,105,1,0,1105,1,99999,1106,0,300,1105,1,99999,1,225,225,225,1101,314,0,0,106,0,0,1105,1,99999,1008,677,677,224,1002,223,2,223,1006,224,329,1001,223,1,223,1007,226,226,224,1002,223,2,223,1005,224,344,101,1,223,223,1008,226,226,224,1002,223,2,223,1006,224,359,101,1,223,223,8,226,677,224,102,2,223,223,1006,224,374,101,1,223,223,1107,677,226,224,1002,223,2,223,1005,224,389,101,1,223,223,1008,677,226,224,102,2,223,223,1006,224,404,1001,223,1,223,1108,677,677,224,102,2,223,223,1005,224,419,1001,223,1,223,1107,677,677,224,102,2,223,223,1006,224,434,1001,223,1,223,1108,226,677,224,1002,223,2,223,1006,224,449,101,1,223,223,8,677,226,224,1002,223,2,223,1005,224,464,101,1,223,223,108,226,677,224,102,2,223,223,1005,224,479,1001,223,1,223,1107,226,677,224,102,2,223,223,1005,224,494,101,1,223,223,108,677,677,224,1002,223,2,223,1005,224,509,1001,223,1,223,7,677,226,224,1002,223,2,223,1006,224,524,101,1,223,223,1007,677,677,224,1002,223,2,223,1006,224,539,1001,223,1,223,107,226,226,224,102,2,223,223,1006,224,554,101,1,223,223,107,677,677,224,102,2,223,223,1006,224,569,1001,223,1,223,1007,226,677,224,1002,223,2,223,1006,224,584,101,1,223,223,108,226,226,224,102,2,223,223,1006,224,599,1001,223,1,223,7,226,226,224,102,2,223,223,1006,224,614,1001,223,1,223,8,226,226,224,1002,223,2,223,1006,224,629,1001,223,1,223,7,226,677,224,1002,223,2,223,1005,224,644,101,1,223,223,1108,677,226,224,102,2,223,223,1006,224,659,101,1,223,223,107,226,677,224,102,2,223,223,1006,224,674,1001,223,1,223,4,223,99,226")
+
+(defn run-solution-5-p1
+  []
+  (intcode-csv-5 solution-5-input 1))
+
+(defn run-solution-5-p2
+  []
+  (intcode-csv-5 solution-5-input 5))
+
+(defn orbital-map-str->map
+  [orbital-map-str]
+  (reduce (fn [orbital-map orbital-relationship-str]
+            (let [[parent child] (str/split orbital-relationship-str #"\)")]
+              (assoc orbital-map child parent)))
+          {}
+          (line-seq (BufferedReader. (StringReader. orbital-map-str)))))
+
+(defn count-orbits
+  [object orbital-map]
+  (loop [count 0
+         parent (get orbital-map object)]
+    (if (nil? parent)
+      count
+      (recur (inc count) (get orbital-map parent)))))
+
+(defn count-all-orbits
+  [orbital-map]
+  (loop [count 0
+         objects (keys orbital-map)]
+    (if (empty? objects)
+      count
+      (recur (+ count (count-orbits (first objects) orbital-map)) (rest objects)))))
+
+(defn run-solution-6-p1
+  []
+  (count-all-orbits (orbital-map-str->map (slurp (resource "orbital_map.txt")))))
+
+(defn transfers
+  [start end]
+  )
+
+(defn run-solution-6-p2
+  []
+  )
