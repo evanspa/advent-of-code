@@ -606,7 +606,7 @@
                                  (assoc-in [current-amp-key :halted] halted)
                                  (assoc-in [current-amp-key :phase-setting] nil)
                                  (assoc-in [(:next-amp current-amp) :input] output))]            
-            (recur amp-programs (:next-amp current-amp)))))))))
+            (recur amp-programs (:next-amp current-amp))))))))
 
 (defn max-thruster-signal
   [amp-program phase-setting-range-start phase-setting-range-end]
@@ -630,4 +630,41 @@
   []
   (max-thruster-signal (vec (map #(Integer/parseInt %) (str/split day-7-program #","))) 5 10))
 
+(def input-8 (slurp (resource "input_8.txt")))
 
+(defn render-layer
+  [digits]
+  (partition 6 (partition 25 digits)))
+
+(defn layers
+  [input-str]
+  (partition (* 25 6) (map #(Character/digit % 10) (seq input-str))))
+
+(defn indexed-layers
+  [input-str]
+  (let [layers (layers input-str)]
+    (map-indexed (fn [idx layer] [idx layer]) layers)))  
+
+(defn count-digits-in-layer
+  [[layer-idx layer] digit]  
+  {:layer-idx layer-idx 
+   :count (count (filter #(== %1 digit) layer))})
+
+(defn run-solution-8-p1
+  []
+  (let [indexed-layers (indexed-layers input-8)
+        m (first (sort-by :count (map #(count-digits-in-layer %1 0) indexed-layers)))
+        indexed-layer (nth indexed-layers (:layer-idx m))]
+    (* (:count (count-digits-in-layer indexed-layer 1))
+       (:count (count-digits-in-layer indexed-layer 2)))))
+
+(defn render-pixel
+  [& pixels]
+  (first (filter #(not= % 2) pixels)))
+
+(defn run-solution-8-p2
+  []
+  (render-layer (apply map render-pixel (layers input-8))))
+
+
+  
