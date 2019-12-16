@@ -41,7 +41,7 @@
   (is (== 654 (required-fuel 1969)))
   (is (== 33583 (required-fuel 100756))))
 
-(defn intcode
+(defn intcode-simple
   [program]  
   (loop [result program i 0]
     (let [opcode (nth result i)
@@ -60,9 +60,13 @@
                             (nth result (nth result (+ i 2)))))
                  (+ i 4)))))))
 
+(defn str->bigint
+  [str]
+  (clojure.lang.BigInt/fromBigInteger (BigInteger. str)))
+
 (defn intcode-csv
   [program-csv]
-  (let [result (intcode (vec (map #(Integer/parseInt %) (str/split program-csv #","))))]    
+  (let [result (intcode-simple (vec (map #(str->bigint %) (str/split program-csv #","))))]    
     (reduce #(str %1 "," %2) (first result) (rest result))))
 
 ;; orig input 1,0,0,3,1,1,2,3,1,3,4,3,1,5,0,3,2,9,1,19,1,19,5,23,1,23,6,27,2,9,27,31,1,5,31,35,1,35,10,39,1,39,10,43,2,43,9,47,1,6,47,51,2,51,6,55,1,5,55,59,2,59,10,63,1,9,63,67,1,9,67,71,2,71,6,75,1,5,75,79,1,5,79,83,1,9,83,87,2,87,10,91,2,10,91,95,1,95,9,99,2,99,9,103,2,10,103,107,2,9,107,111,1,111,5,115,1,115,2,119,1,119,6,0,99,2,0,14,0
@@ -80,7 +84,7 @@
                        :let [inputs (-> input-template
                                         (assoc 1 pos-1-val)
                                         (assoc 2 pos-2-val))
-                             result (first (intcode inputs))]
+                             result (first (intcode-simple inputs))]
                        :when (== result 19690720)]
                    [pos-1-val pos-2-val]))]
       (when (not (empty? solution-inputs))
@@ -290,103 +294,210 @@
     2 [0 0 0]
     1 [0 0 0]))
 
-(defn param-val
+(defn address-param
+  [prog instr-ptr offset mode relative-base]
+  (let [base-addr (get prog (+ instr-ptr offset))]    
+    (case mode
+      0 base-addr ; positional
+      2 (+ base-addr relative-base)))) ; relative
+
+(defn value-param
   "Returns the value of a parameter based on its mode (position or immediate)."
-  [inputs i param-mode offset]
-  (if (== param-mode 0)               
-    (nth inputs (nth inputs (+ i offset))) ; position mode
-    (nth inputs (+ i offset))))            ; immediate mode
+  [prog i param-mode offset relative-base]
+  (let [val
+        (case param-mode
+          0 (get prog (get prog (+ i offset)))  ; position
+          1 (get prog (+ i offset))             ; immediate
+          2 (get prog (+ (get prog (+ i offset)) relative-base)))] ; relative
+   (if val val 0))) 
 
 (defn perform-op
-  [inputs i op param-1-mode param-2-mode]
-  (assoc inputs
-         (nth inputs (+ i 3))
-         (op (param-val inputs i param-1-mode 1)
-             (param-val inputs i param-2-mode 2))))
+  ([prog i op param-1-mode param-2-mode relative-base]
+   (perform-op prog i op param-1-mode param-2-mode 0 relative-base))
+  ([prog i op param-1-mode param-2-mode param-3-mode relative-base]
+   (assoc prog
+          (address-param prog i 3 param-3-mode relative-base)
+          (op (value-param prog i param-1-mode 1 relative-base)
+              (value-param prog i param-2-mode 2 relative-base)))))
 
-(defn intcode-5
-  [program input]  
+(defn phase-setting-permutations
+  [range-start range-end]
+  (for [a (range range-start range-end)
+        b (range range-start range-end)
+        c (range range-start range-end)
+        d (range range-start range-end)
+        e (range range-start range-end)
+        :let [v [a b c d e]
+              sv (set v)]
+        :when (== (count sv) 5)]
+    v))
+
+(defn indexed
+  [v]
+  (loop [idx 0 v v m {}]
+    (if (empty? v)
+      m
+      (recur (inc idx) (rest v) (assoc m idx (first v))))))
+
+(defn intcode
+  "Intcode computer."
+  [program phase-setting input instruction-pointer output-value relative-base]  
   (loop [program program
-         i 0 ; instruction pointer
-         terminate false]
-    (when (not terminate)      
-      (let [opcode-str (str (nth program i))
-            opcode-chars (seq opcode-str)]        
+         paused false
+         halted false
+         i instruction-pointer
+         phase-setting phase-setting
+         input input
+         output-value output-value
+         relative-base relative-base]    
+    (if (or paused halted)
+      [program output-value paused halted i relative-base]      
+      (let [opcode-str (str (get program i))
+            opcode-chars (seq opcode-str)
+            [param-1-mode param-2-mode param-3-mode] (param-modes opcode-chars)]        
         (cond
           (str/ends-with? opcode-str "1") ; add
-          (let [[param-1-mode param-2-mode] (param-modes opcode-chars)]
-            (recur (perform-op program i + param-1-mode param-2-mode)
-                   (+ i 4)
-                   false))
+          (recur (perform-op program i + param-1-mode param-2-mode param-3-mode relative-base)
+                 false
+                 false
+                 (+ i 4)
+                 phase-setting
+                 input
+                 output-value
+                 relative-base)          
           
           (str/ends-with? opcode-str "2") ; mult
-          (let [[param-1-mode param-2-mode] (param-modes opcode-chars)]
-            (recur (perform-op program i * param-1-mode param-2-mode)
-                   (+ i 4)
-                   false))
+          (recur (perform-op program i * param-1-mode param-2-mode param-3-mode relative-base)
+                 false
+                 false
+                 (+ i 4)
+                 phase-setting
+                 input
+                 output-value
+                 relative-base)        
 
-          (str/ends-with? opcode-str "3") ; read an input val          
-          (recur (assoc program (nth program (+ i 1)) input)
-                 (+ i 2)
-                 false)
+          (str/ends-with? opcode-str "3") ; read an input val
+          (do            
+            (recur (assoc program
+                          (address-param program i 1 param-1-mode relative-base)                            
+                          (if phase-setting phase-setting input))
+                   false
+                   false
+                   (+ i 2)
+                   nil
+                   input
+                   output-value
+                   relative-base))                   
 
           (str/ends-with? opcode-str "4") ; write
-          (let [[param-1-mode] (param-modes opcode-chars)]            
-            (print (param-val program i param-1-mode 1) " ")
-            (recur program (+ i 2) false))
+          (do            
+            (recur program
+                   true
+                   false
+                   (+ i 2)
+                   phase-setting
+                   input
+                   (value-param program i param-1-mode 1 relative-base)
+                   relative-base))          
 
           (str/ends-with? opcode-str "5") ; jump-if-true
-          (let [[param-1-mode param-2-mode] (param-modes opcode-chars)]
-            (let [jump-test (param-val program i param-1-mode 1)]
-              (if (not (== jump-test 0))
-                (recur program (param-val program i param-2-mode 2) false)
-                (recur program (+ i 3) false))))          
+          (let [jump-test (param-val program i param-1-mode 1 relative-base)]
+            (recur program
+                   false
+                   false
+                   (if (not (== jump-test 0))
+                     (value-param program i param-2-mode 2 relative-base)
+                     (+ i 3))
+                   phase-setting
+                   input
+                   output-value
+                   relative-base))                   
 
           (str/ends-with? opcode-str "6") ; jump-if-false
-          (let [[param-1-mode param-2-mode] (param-modes opcode-chars)]
-            (let [jump-test (param-val program i param-1-mode 1)]
-              (if (== jump-test 0)
-                (recur program (param-val program i param-2-mode 2) false)
-                (recur program (+ i 3) false))))          
+          (let [jump-test (param-val program i param-1-mode 1 relative-base)]
+            (recur program
+                   false
+                   false
+                   (if (== jump-test 0)
+                     (value-param program i param-2-mode 2 relative-base)
+                     (+ i 3))
+                   phase-setting
+                   input
+                   output-value
+                   relative-base))          
 
           (str/ends-with? opcode-str "7") ; less than
-          (let [[param-1-mode param-2-mode] (param-modes opcode-chars)]            
-            (recur (assoc program
-                          (nth program (+ i 3))
-                          (if (< (param-val program i param-1-mode 1)
-                                 (param-val program i param-2-mode 2))
-                            1
-                            0))
-                   (+ i 4)
-                   false))
+          (recur (assoc program
+                        (address-param program i 3 param-3-mode relative-base)                        
+                        (if (< (value-param program i param-1-mode 1 relative-base)
+                               (value-param program i param-2-mode 2 relative-base))
+                          1
+                          0))
+                 false
+                 false
+                 (+ i 4)                   
+                 phase-setting
+                 input
+                 output-value
+                 relative-base)          
 
           (str/ends-with? opcode-str "8") ; equals
-          (let [[param-1-mode param-2-mode] (param-modes opcode-chars)]            
-            (recur (assoc program
-                          (nth program (+ i 3))
-                          (if (== (param-val program i param-1-mode 1)
-                                  (param-val program i param-2-mode 2))
-                            1
-                            0))
-                   (+ i 4)
-                   false))
+          (recur (assoc program                                                  
+                        (address-param program i 3 param-3-mode relative-base)
+                        (if (== (value-param program i param-1-mode 1 relative-base)
+                                (value-param program i param-2-mode 2 relative-base))
+                          1
+                          0))
+                 false
+                 false
+                 (+ i 4)                   
+                 phase-setting
+                 input
+                 output-value
+                 relative-base)                   
 
           (str/ends-with? opcode-str "99")
-          (recur nil nil true))))))
+          (recur program true true nil nil nil output-value relative-base)
 
-(defn intcode-csv-5
-  [program-csv input]  
-  (intcode-5 (vec (map #(Integer/parseInt %) (str/split program-csv #","))) input))
+          (str/ends-with? opcode-str "9") ; adjust relative base
+          (recur program
+                 false
+                 false
+                 (+ i 2)
+                 nil
+                 input
+                 output-value
+                 (+ relative-base (value-param program i param-1-mode 1 relative-base))))))))
+
+(defn run-program
+  "Executes the intcode computer using the given program and input."
+  [prog-str input]  
+  (loop [prog (indexed (vec (map #(str->bigint %) (str/split prog-str #","))))
+         input input
+         instr-ptr 0
+         output-value nil
+         relative-base 0
+         paused false
+         halted false]
+    (if halted
+      nil 
+      (if paused
+        (do
+          (println output-value)
+          (let [[program output-value paused halted i relative-base] (intcode prog nil input instr-ptr output-value relative-base)]
+            (recur program input i output-value relative-base paused halted)))                                        
+        (let [[program output-value paused halted i relative-base] (intcode prog nil input instr-ptr output-value relative-base)]
+          (recur program input i output-value relative-base paused halted))))))
 
 (def solution-5-input "3,225,1,225,6,6,1100,1,238,225,104,0,1101,34,7,225,101,17,169,224,1001,224,-92,224,4,224,1002,223,8,223,1001,224,6,224,1,224,223,223,1102,46,28,225,1102,66,83,225,2,174,143,224,1001,224,-3280,224,4,224,1002,223,8,223,1001,224,2,224,1,224,223,223,1101,19,83,224,101,-102,224,224,4,224,102,8,223,223,101,5,224,224,1,223,224,223,1001,114,17,224,1001,224,-63,224,4,224,1002,223,8,223,1001,224,3,224,1,223,224,223,1102,60,46,225,1101,7,44,225,1002,40,64,224,1001,224,-1792,224,4,224,102,8,223,223,101,4,224,224,1,223,224,223,1101,80,27,225,1,118,44,224,101,-127,224,224,4,224,102,8,223,223,101,5,224,224,1,223,224,223,1102,75,82,225,1101,40,41,225,1102,22,61,224,1001,224,-1342,224,4,224,102,8,223,223,1001,224,6,224,1,223,224,223,102,73,14,224,1001,224,-511,224,4,224,1002,223,8,223,101,5,224,224,1,224,223,223,4,223,99,0,0,0,677,0,0,0,0,0,0,0,0,0,0,0,1105,0,99999,1105,227,247,1105,1,99999,1005,227,99999,1005,0,256,1105,1,99999,1106,227,99999,1106,0,265,1105,1,99999,1006,0,99999,1006,227,274,1105,1,99999,1105,1,280,1105,1,99999,1,225,225,225,1101,294,0,0,105,1,0,1105,1,99999,1106,0,300,1105,1,99999,1,225,225,225,1101,314,0,0,106,0,0,1105,1,99999,1008,677,677,224,1002,223,2,223,1006,224,329,1001,223,1,223,1007,226,226,224,1002,223,2,223,1005,224,344,101,1,223,223,1008,226,226,224,1002,223,2,223,1006,224,359,101,1,223,223,8,226,677,224,102,2,223,223,1006,224,374,101,1,223,223,1107,677,226,224,1002,223,2,223,1005,224,389,101,1,223,223,1008,677,226,224,102,2,223,223,1006,224,404,1001,223,1,223,1108,677,677,224,102,2,223,223,1005,224,419,1001,223,1,223,1107,677,677,224,102,2,223,223,1006,224,434,1001,223,1,223,1108,226,677,224,1002,223,2,223,1006,224,449,101,1,223,223,8,677,226,224,1002,223,2,223,1005,224,464,101,1,223,223,108,226,677,224,102,2,223,223,1005,224,479,1001,223,1,223,1107,226,677,224,102,2,223,223,1005,224,494,101,1,223,223,108,677,677,224,1002,223,2,223,1005,224,509,1001,223,1,223,7,677,226,224,1002,223,2,223,1006,224,524,101,1,223,223,1007,677,677,224,1002,223,2,223,1006,224,539,1001,223,1,223,107,226,226,224,102,2,223,223,1006,224,554,101,1,223,223,107,677,677,224,102,2,223,223,1006,224,569,1001,223,1,223,1007,226,677,224,1002,223,2,223,1006,224,584,101,1,223,223,108,226,226,224,102,2,223,223,1006,224,599,1001,223,1,223,7,226,226,224,102,2,223,223,1006,224,614,1001,223,1,223,8,226,226,224,1002,223,2,223,1006,224,629,1001,223,1,223,7,226,677,224,1002,223,2,223,1005,224,644,101,1,223,223,1108,677,226,224,102,2,223,223,1006,224,659,101,1,223,223,107,226,677,224,102,2,223,223,1006,224,674,1001,223,1,223,4,223,99,226")
 
 (defn run-solution-5-p1
   []
-  (intcode-csv-5 solution-5-input 1))
+  (run-program solution-5-input 1))
 
 (defn run-solution-5-p2
   []
-  (intcode-csv-5 solution-5-input 5))
+  (run-program solution-5-input 5))
 
 (defn orbital-map-str->map
   [orbital-map-str]
@@ -442,167 +553,36 @@
     (+ (count-orbits-to-parent "SAN" #(= % common-parent) orbital-map)
        (count-orbits-to-parent "YOU" #(= % common-parent) orbital-map))))
 
-(defn phase-setting-permutations
-  [range-start range-end]
-  (for [a (range range-start range-end)
-        b (range range-start range-end)
-        c (range range-start range-end)
-        d (range range-start range-end)
-        e (range range-start range-end)
-        :let [v [a b c d e]
-              sv (set v)]
-        :when (== (count sv) 5)]
-    v))
-
-(defn intcode-7
-  [program phase-setting input instruction-pointer output-value]  
-  (loop [program program
-         terminate false
-         halted false
-         i instruction-pointer
-         phase-setting phase-setting
-         input input
-         output-value output-value]
-    (if terminate
-      [program output-value halted i]
-      (let [opcode-str (str (nth program i))
-            opcode-chars (seq opcode-str)]        
-        (cond
-          (str/ends-with? opcode-str "1") ; add
-          (let [[param-1-mode param-2-mode] (param-modes opcode-chars)]
-            (recur (perform-op program i + param-1-mode param-2-mode)
-                   false
-                   false
-                   (+ i 4)
-                   phase-setting
-                   input
-                   output-value))
-          
-          (str/ends-with? opcode-str "2") ; mult
-          (let [[param-1-mode param-2-mode] (param-modes opcode-chars)]
-            (recur (perform-op program i * param-1-mode param-2-mode)
-                   false
-                   false
-                   (+ i 4)
-                   phase-setting
-                   input
-                   output-value))
-
-          (str/ends-with? opcode-str "3") ; read an input val          
-          (recur (assoc program
-                        (nth program (+ i 1))
-                        (if phase-setting phase-setting input))
-                 false
-                 false
-                 (+ i 2)
-                 nil
-                 input
-                 output-value)
-
-          (str/ends-with? opcode-str "4") ; write
-          (let [[param-1-mode] (param-modes opcode-chars)]
-            (recur program
-                   true
-                   false
-                   (+ i 2)
-                   phase-setting
-                   input
-                   (param-val program i param-1-mode 1)))
-
-          (str/ends-with? opcode-str "5") ; jump-if-true
-          (let [[param-1-mode param-2-mode] (param-modes opcode-chars)]
-            (let [jump-test (param-val program i param-1-mode 1)]
-              (if (not (== jump-test 0))
-                (recur program
-                       false
-                       false
-                       (param-val program i param-2-mode 2)
-                       phase-setting
-                       input
-                       output-value)
-                (recur program
-                       false
-                       false
-                       (+ i 3)
-                       phase-setting
-                       input
-                       output-value))))          
-
-          (str/ends-with? opcode-str "6") ; jump-if-false
-          (let [[param-1-mode param-2-mode] (param-modes opcode-chars)]
-            (let [jump-test (param-val program i param-1-mode 1)]
-              (if (== jump-test 0)
-                (recur program
-                       false
-                       false
-                       (param-val program i param-2-mode 2)
-                       phase-setting
-                       input
-                       output-value)
-                (recur program
-                       false
-                       false
-                       (+ i 3)
-                       phase-setting
-                       input
-                       output-value))))          
-
-          (str/ends-with? opcode-str "7") ; less than
-          (let [[param-1-mode param-2-mode] (param-modes opcode-chars)]            
-            (recur (assoc program                          
-                          (nth program (+ i 3))
-                          (if (< (param-val program i param-1-mode 1)
-                                 (param-val program i param-2-mode 2))
-                            1
-                            0))
-                   false
-                   false
-                   (+ i 4)                   
-                   phase-setting
-                   input
-                   output-value))
-
-          (str/ends-with? opcode-str "8") ; equals
-          (let [[param-1-mode param-2-mode] (param-modes opcode-chars)]            
-            (recur (assoc program                          
-                          (nth program (+ i 3))
-                          (if (== (param-val program i param-1-mode 1)
-                                  (param-val program i param-2-mode 2))
-                            1
-                            0))
-                   false
-                   false
-                   (+ i 4)                   
-                   phase-setting
-                   input
-                   output-value))
-
-          (str/ends-with? opcode-str "99")
-          (recur program true true nil nil nil output-value))))))
-
 (defn thruster-signal
   [amp-program phase-setting-sequence]
-  (let [amp-a {:amp :a :prog amp-program :ptr 0 :phase-setting (nth phase-setting-sequence 0) :input 0   :halted false :output nil :next-amp :b}
-        amp-b {:amp :b :prog amp-program :ptr 0 :phase-setting (nth phase-setting-sequence 1) :input nil :halted false :output nil :next-amp :c}
-        amp-c {:amp :c :prog amp-program :ptr 0 :phase-setting (nth phase-setting-sequence 2) :input nil :halted false :output nil :next-amp :d}
-        amp-d {:amp :d :prog amp-program :ptr 0 :phase-setting (nth phase-setting-sequence 3) :input nil :halted false :output nil :next-amp :e}
-        amp-e {:amp :e :prog amp-program :ptr 0 :phase-setting (nth phase-setting-sequence 4) :input nil :halted false :output nil :next-amp :a}]
+  (let [amp-a {:amp :a :prog amp-program :ptr 0 :phase-setting (nth phase-setting-sequence 0) :input 0   :halted false :output nil :next-amp :b :relative-base 0}
+        amp-b {:amp :b :prog amp-program :ptr 0 :phase-setting (nth phase-setting-sequence 1) :input nil :halted false :output nil :next-amp :c :relative-base 0}
+        amp-c {:amp :c :prog amp-program :ptr 0 :phase-setting (nth phase-setting-sequence 2) :input nil :halted false :output nil :next-amp :d :relative-base 0}
+        amp-d {:amp :d :prog amp-program :ptr 0 :phase-setting (nth phase-setting-sequence 3) :input nil :halted false :output nil :next-amp :e :relative-base 0}
+        amp-e {:amp :e :prog amp-program :ptr 0 :phase-setting (nth phase-setting-sequence 4) :input nil :halted false :output nil :next-amp :a :relative-base 0}]
     (loop [amp-programs {:a amp-a, :b amp-b, :c amp-c, :d amp-d, :e amp-e}
            current-amp-key :a]      
       (let [current-amp (get amp-programs current-amp-key)]                                        
         (if (:halted current-amp)
           (if (= current-amp-key :e)
             (:output current-amp)
-            (recur amp-programs (:next-amp current-amp)))
-          (let [[result-program output halted inst-ptr] (intcode-7 (:prog current-amp)
-                                                                   (:phase-setting current-amp)                                                                   
-                                                                   (:input current-amp)
-                                                                   (:ptr current-amp)
-                                                                   (:output current-amp))                
+            (recur amp-programs (:next-amp current-amp)))                                        
+          (let [[result-program
+                 output
+                 paused
+                 halted
+                 inst-ptr
+                 relative-base] (intcode (:prog current-amp)
+                                         (:phase-setting current-amp)                                                                   
+                                         (:input current-amp)
+                                         (:ptr current-amp)
+                                         (:output current-amp)
+                                         (:relative-base current-amp))                
                 amp-programs (-> amp-programs
                                  (assoc-in [current-amp-key :output] output)
                                  (assoc-in [current-amp-key :prog] result-program)
                                  (assoc-in [current-amp-key :ptr] inst-ptr)
+                                 (assoc-in [current-amp-key :relative-base] relative-base)
                                  (assoc-in [current-amp-key :halted] halted)
                                  (assoc-in [current-amp-key :phase-setting] nil)
                                  (assoc-in [(:next-amp current-amp) :input] output))]            
@@ -624,11 +604,11 @@
 
 (defn run-solution-7-p1
   []
-  (max-thruster-signal (vec (map #(Integer/parseInt %) (str/split day-7-program #","))) 0 5))
+  (max-thruster-signal (vec (map #(str->bigint %) (str/split day-7-program #","))) 0 5))
 
 (defn run-solution-7-p2
   []
-  (max-thruster-signal (vec (map #(Integer/parseInt %) (str/split day-7-program #","))) 5 10))
+  (max-thruster-signal (vec (map #(str->bigint %) (str/split day-7-program #","))) 5 10))
 
 (def input-8 (slurp (resource "input_8.txt")))
 
@@ -666,5 +646,8 @@
   []
   (render-layer (apply map render-pixel (layers input-8))))
 
+(def program-9 "1102,34463338,34463338,63,1007,63,34463338,63,1005,63,53,1102,1,3,1000,109,988,209,12,9,1000,209,6,209,3,203,0,1008,1000,1,63,1005,63,65,1008,1000,2,63,1005,63,904,1008,1000,0,63,1005,63,58,4,25,104,0,99,4,0,104,0,99,4,17,104,0,99,0,0,1102,521,1,1028,1101,0,33,1011,1101,0,22,1006,1101,28,0,1018,1102,37,1,1008,1102,1,20,1019,1101,0,405,1026,1101,25,0,1015,1101,330,0,1023,1101,0,29,1016,1101,0,560,1025,1101,24,0,1017,1102,516,1,1029,1102,333,1,1022,1102,1,34,1012,1101,0,402,1027,1101,0,1,1021,1102,36,1,1013,1102,30,1,1002,1101,21,0,1000,1102,1,23,1005,1102,39,1,1003,1102,1,32,1007,1102,26,1,1004,1101,565,0,1024,1101,0,0,1020,1101,0,31,1014,1101,27,0,1001,1101,0,38,1009,1101,0,35,1010,109,-3,2102,1,10,63,1008,63,32,63,1005,63,203,4,187,1106,0,207,1001,64,1,64,1002,64,2,64,109,26,21108,40,40,-4,1005,1019,229,4,213,1001,64,1,64,1105,1,229,1002,64,2,64,109,-20,2102,1,-3,63,1008,63,22,63,1005,63,253,1001,64,1,64,1105,1,255,4,235,1002,64,2,64,109,-10,1208,10,39,63,1005,63,277,4,261,1001,64,1,64,1106,0,277,1002,64,2,64,109,15,2107,20,-8,63,1005,63,299,4,283,1001,64,1,64,1106,0,299,1002,64,2,64,109,-8,1208,3,40,63,1005,63,315,1106,0,321,4,305,1001,64,1,64,1002,64,2,64,109,29,2105,1,-6,1106,0,339,4,327,1001,64,1,64,1002,64,2,64,109,-18,1205,10,353,4,345,1106,0,357,1001,64,1,64,1002,64,2,64,109,11,1206,-1,373,1001,64,1,64,1105,1,375,4,363,1002,64,2,64,109,-2,1205,0,391,1001,64,1,64,1106,0,393,4,381,1002,64,2,64,109,10,2106,0,-3,1106,0,411,4,399,1001,64,1,64,1002,64,2,64,109,-18,21108,41,39,3,1005,1015,427,1105,1,433,4,417,1001,64,1,64,1002,64,2,64,109,-7,21101,42,0,6,1008,1011,45,63,1005,63,457,1001,64,1,64,1106,0,459,4,439,1002,64,2,64,109,-14,2101,0,9,63,1008,63,21,63,1005,63,481,4,465,1105,1,485,1001,64,1,64,1002,64,2,64,109,22,1207,-7,21,63,1005,63,505,1001,64,1,64,1106,0,507,4,491,1002,64,2,64,109,15,2106,0,0,4,513,1106,0,525,1001,64,1,64,1002,64,2,64,109,-14,21101,43,0,-1,1008,1013,43,63,1005,63,551,4,531,1001,64,1,64,1106,0,551,1002,64,2,64,109,10,2105,1,0,4,557,1106,0,569,1001,64,1,64,1002,64,2,64,109,-12,21102,44,1,3,1008,1015,44,63,1005,63,595,4,575,1001,64,1,64,1105,1,595,1002,64,2,64,109,-4,1201,-8,0,63,1008,63,21,63,1005,63,621,4,601,1001,64,1,64,1106,0,621,1002,64,2,64,109,5,2108,37,-5,63,1005,63,639,4,627,1105,1,643,1001,64,1,64,1002,64,2,64,109,-14,1202,1,1,63,1008,63,21,63,1005,63,669,4,649,1001,64,1,64,1105,1,669,1002,64,2,64,109,-2,1207,7,27,63,1005,63,691,4,675,1001,64,1,64,1106,0,691,1002,64,2,64,109,13,2107,33,-3,63,1005,63,711,1001,64,1,64,1105,1,713,4,697,1002,64,2,64,109,19,1206,-9,727,4,719,1105,1,731,1001,64,1,64,1002,64,2,64,109,-24,1202,0,1,63,1008,63,20,63,1005,63,755,1001,64,1,64,1106,0,757,4,737,1002,64,2,64,109,8,21102,45,1,-3,1008,1010,46,63,1005,63,781,1001,64,1,64,1106,0,783,4,763,1002,64,2,64,109,-15,2108,40,10,63,1005,63,799,1105,1,805,4,789,1001,64,1,64,1002,64,2,64,109,20,21107,46,45,-1,1005,1017,821,1106,0,827,4,811,1001,64,1,64,1002,64,2,64,109,-23,1201,6,0,63,1008,63,29,63,1005,63,847,1106,0,853,4,833,1001,64,1,64,1002,64,2,64,109,17,21107,47,48,2,1005,1014,875,4,859,1001,64,1,64,1106,0,875,1002,64,2,64,109,-10,2101,0,-2,63,1008,63,20,63,1005,63,895,1105,1,901,4,881,1001,64,1,64,4,64,99,21102,27,1,1,21101,0,915,0,1105,1,922,21201,1,37574,1,204,1,99,109,3,1207,-2,3,63,1005,63,964,21201,-2,-1,1,21102,942,1,0,1105,1,922,22102,1,1,-1,21201,-2,-3,1,21101,957,0,0,1105,1,922,22201,1,-1,-2,1105,1,968,21201,-2,0,-2,109,-3,2105,1,0")
 
-  
+(defn run-solution-9-p1
+  []
+  (run-program program-9 1))
