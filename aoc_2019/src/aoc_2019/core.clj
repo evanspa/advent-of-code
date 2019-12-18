@@ -401,7 +401,7 @@
                    relative-base))          
 
           (str/ends-with? opcode-str "5") ; jump-if-true
-          (let [jump-test (param-val program i param-1-mode 1 relative-base)]
+          (let [jump-test (value-param program i param-1-mode 1 relative-base)]
             (recur program
                    false
                    false
@@ -414,7 +414,7 @@
                    relative-base))                   
 
           (str/ends-with? opcode-str "6") ; jump-if-false
-          (let [jump-test (param-val program i param-1-mode 1 relative-base)]
+          (let [jump-test (value-param program i param-1-mode 1 relative-base)]
             (recur program
                    false
                    false
@@ -651,3 +651,115 @@
 (defn run-solution-9-p1
   []
   (run-program program-9 1))
+
+(defn run-solution-9-p2
+  []
+  (run-program program-9 2))
+
+(defn slope
+  [[pt1-x pt1-y] [pt2-x pt2-y]]
+  (let [delta-x (- pt2-x pt1-x)]
+    (if (not (== delta-x 0))      
+      (/ (- pt2-y pt1-y) delta-x)
+      nil)))
+
+#_(defn collinear?
+  [p1 p2 p3]  
+  (= (slope p1 p2) (slope p2 p3)))
+
+#_(defn between?
+  [[p1-x p1-y] [p2-x p2-y] [p3-x p3-y]]
+  (or (and (and (<= p1-x p2-x) (<= p2-x p3-x))
+           (and (<= p1-y p2-y) (<= p2-y p3-y)))
+      (and (and (>= p1-x p2-x) (>= p2-x p3-x))
+           (and (>= p1-y p2-y) (>= p2-y p3-y)))))
+
+(def day-10-test-1-input
+  ".#..#\n.....\n#####\n....#\n...##")
+
+(defn line-str->asteroids
+  [line-str line-num]
+  (loop [line-chars (seq line-str)
+         column 0
+         asteroids {}]
+    (if (empty? line-chars)
+      asteroids
+      (recur (next line-chars)
+             (inc column)
+             (let [char (first line-chars)
+                   pt [column line-num]]
+               (if (= char \#)
+                 (assoc asteroids pt {:coord pt :detections 0})
+                 asteroids))))))
+
+(defn read-asteroid-map
+  [map-str]
+  (loop [lines (line-seq (BufferedReader. (StringReader. map-str)))
+         row 0
+         asteroids {}]
+    (if (empty? lines)
+      asteroids
+      (let [line (first lines)
+            line-chars (seq line) ]
+        #_(println line)
+        (recur (next lines)
+               (inc row)
+               (merge asteroids (line-str->asteroids line row)))))))
+
+(defn y
+  [x [pt-x pt-y] slope]  
+  (+ (* slope (- x pt-x)) pt-y))
+
+(defn points-between
+  [[p1-x p1-y :as p1] [p2-x p2-y :as p2]]
+  (let [slope (slope p1 p2)]
+    (if slope      
+      (map (fn [x] [x (y x p2 slope)])
+           (if (> p1-x p2-x)
+             (range (dec p1-x) p2-x -1)
+             (range (inc p1-x) p2-x)))
+      (map (fn [y] [p1-x y]) ;; p1 and p2 form vertical line, so x is fixed
+           (if (> p1-y p2-y)
+             (range (dec p1-y) p2-y -1)
+             (range (inc p1-y) p2-y))))))
+
+(defn line-of-sight?
+  [pt1 pt2 asteroid-map]
+  (loop [points-between (points-between pt1 pt2)
+         line-of-sight true]
+    (if (empty? points-between)      
+      line-of-sight
+      (recur (rest points-between)
+             (and line-of-sight
+                  (nil? (get asteroid-map (first points-between))))))))
+
+(defn visible-count
+  [asteroid all-asteroid-pts asteroid-map]
+  (count (filter #(and (line-of-sight? asteroid % asteroid-map)
+                       (not= % asteroid))
+                 all-asteroid-pts)))
+
+(defn compute-detections
+  [map-str]
+  (let [asteroid-map (read-asteroid-map map-str)
+        all-asteroid-pts (keys asteroid-map)]    
+    (loop [asteroid-map asteroid-map
+           inner-asteroid-pts all-asteroid-pts]
+      (if (empty? inner-asteroid-pts)
+        asteroid-map
+        (let [asteroid (first inner-asteroid-pts)]        
+          (recur (update-in asteroid-map [asteroid :detections] + (visible-count asteroid all-asteroid-pts asteroid-map))
+                 (next inner-asteroid-pts)))))))
+
+(defn most-detections
+  [map-str]
+  (->> (compute-detections map-str)
+       (sort-by #(:detections (second %)))
+       (last)
+       (second)))
+
+(def input-10 (slurp (resource "input_10.txt")))
+
+(defn run-solution-10-p1
+ []
+ (most-detections input-10))
