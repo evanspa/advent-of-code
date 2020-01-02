@@ -740,20 +740,22 @@
                  all-asteroid-pts)))
 
 (defn compute-detections
-  [map-str]
-  (let [asteroid-map (read-asteroid-map map-str)
-        all-asteroid-pts (keys asteroid-map)]    
+  [asteroid-map]
+  (let [all-asteroid-pts (keys asteroid-map)]    
     (loop [asteroid-map asteroid-map
            inner-asteroid-pts all-asteroid-pts]
       (if (empty? inner-asteroid-pts)
         asteroid-map
         (let [asteroid (first inner-asteroid-pts)]        
-          (recur (update-in asteroid-map [asteroid :detections] + (visible-count asteroid all-asteroid-pts asteroid-map))
+          (recur (update-in asteroid-map
+                            [asteroid :detections]
+                            +
+                            (visible-count asteroid all-asteroid-pts asteroid-map))
                  (next inner-asteroid-pts)))))))
 
 (defn most-detections
-  [map-str]
-  (->> (compute-detections map-str)
+  [asteroid-map]
+  (->> (compute-detections asteroid-map)
        (sort-by #(:detections (second %)))
        (last)
        (second)))
@@ -761,5 +763,126 @@
 (def input-10 (slurp (resource "input_10.txt")))
 
 (defn run-solution-10-p1
- []
- (most-detections input-10))
+  []
+  (most-detections (read-asteroid-map input-10)))
+
+(defn angle
+  [[pt-x pt-y] [origin-x origin-y]]
+  (let [opposite-side (- pt-y origin-y)]       
+    (Math/toDegrees (Math/asin (/ opposite-side (Math/hypot opposite-side (- pt-x origin-x)))))))
+
+(defn quadrant
+  "Returns the quadrant of the given point relative to origin assuming a clockwise ordering."
+  [[pt-x pt-y] [orig-x orig-y]]
+  (cond
+    (and (>= pt-x orig-x) (<= pt-y orig-y)) 1
+    (and (>= pt-x orig-x) (> pt-y orig-y)) 2
+    (and (< pt-x orig-x) (>= pt-y orig-y)) 3
+    :else 4))
+
+(defn compare-asteroids
+  "Compares 2 asteroids based on their angle relative to origin and a clockwise rotation starting
+  from the vertical position."
+  [[pt1-x pt1-y :as pt1] [pt2-x pt2-y :as pt2] [origin-x origin-y :as origin]]  
+  (let [pt1-quad (quadrant pt1 origin)
+        pt2-quad (quadrant pt2 origin)
+        quad-compare (compare pt1-quad pt2-quad)]
+    (if (== quad-compare 0) ; pt1 and pt2 are in same quadrant
+      (let [pt1-angle (angle pt1 origin)
+            pt2-angle (angle pt2 origin)]        
+        (case pt1-quad 
+          1 (* 1 (compare pt1-angle pt2-angle)) 
+          2 (* 1 (compare pt1-angle pt2-angle))        
+          3 (* -1 (compare pt1-angle pt2-angle)) 
+          4 (* -1 (compare pt1-angle pt2-angle)))) 
+      quad-compare)))
+
+(defn sort-asteroids
+  [asteroids origin]
+  (sort #(compare-asteroids %1 %2 origin) asteroids))
+
+(defn collect-line-of-sight
+  [origin asteroid-map]
+  (loop [line-of-sight []
+         asteroid-pts (keys asteroid-map)]
+    (if (empty? asteroid-pts)
+      line-of-sight
+      (if (line-of-sight? origin (first asteroid-pts) asteroid-map)
+        (recur (conj line-of-sight (first asteroid-pts))
+               (next asteroid-pts))
+        (recur line-of-sight (next asteroid-pts))))))
+
+(defn collect-all-line-of-sight
+  [origin asteroid-map]
+  (loop [all-line-of-sight []
+         asteroid-map asteroid-map]
+    (if (empty? asteroid-map)
+      all-line-of-sight
+      (let [line-of-sight (collect-line-of-sight origin asteroid-map)
+            sorted-line-of-sight (sort-asteroids line-of-sight origin)]        
+        (recur (conj all-line-of-sight sorted-line-of-sight)
+               (apply dissoc asteroid-map line-of-sight))))))
+
+(def day-10-test-2-input
+".#....#####...#..
+##...##.#####..##
+##...#...#.#####.
+..#.....#...###..
+..#.#.....#....##")
+
+(def day-10-test-3-input
+  ".#..##.###...#######
+##.############..##.
+.#.######.########.#
+.###.#######.####.#.
+#####.##.#.##.###.##
+..#####..#.#########
+####################
+#.####....###.#.#.##
+##.#################
+#####.##.###..####..
+..######..##.#######
+####.##.####...##..#
+.#####..#.######.###
+##...#.##########...
+#.##########.#######
+.####.#.###.###.#.##
+....##.##.###..#####
+.#.#.###########.###
+#.#.#.#####.####.###
+###.##.####.##.#..##")
+
+(defn run-solution-10-p2
+  []
+  (let [asteroid-map (read-asteroid-map input-10)
+        station (most-detections asteroid-map)
+        station-coord (:coord station)
+        [x y] (nth (apply concat
+                          (collect-all-line-of-sight station-coord
+                                                     (dissoc asteroid-map station-coord)))
+                   199)]
+    (+ (* x 100) y)))
+
+(def day-11-p1-input "3,8,1005,8,328,1106,0,11,0,0,0,104,1,104,0,3,8,102,-1,8,10,101,1,10,10,4,10,108,1,8,10,4,10,101,0,8,28,1006,0,13,3,8,102,-1,8,10,101,1,10,10,4,10,1008,8,1,10,4,10,1002,8,1,54,1,1103,9,10,1006,0,97,2,1003,0,10,1,105,6,10,3,8,102,-1,8,10,1001,10,1,10,4,10,1008,8,1,10,4,10,1001,8,0,91,3,8,102,-1,8,10,101,1,10,10,4,10,1008,8,0,10,4,10,102,1,8,113,2,109,5,10,1006,0,96,1,2,5,10,3,8,1002,8,-1,10,101,1,10,10,4,10,1008,8,0,10,4,10,102,1,8,146,2,103,2,10,1006,0,69,2,9,8,10,1006,0,25,3,8,102,-1,8,10,1001,10,1,10,4,10,1008,8,0,10,4,10,101,0,8,182,3,8,1002,8,-1,10,101,1,10,10,4,10,108,1,8,10,4,10,1001,8,0,203,2,5,9,10,1006,0,0,2,6,2,10,3,8,102,-1,8,10,101,1,10,10,4,10,108,1,8,10,4,10,1002,8,1,236,2,4,0,10,3,8,1002,8,-1,10,1001,10,1,10,4,10,1008,8,0,10,4,10,1002,8,1,263,2,105,9,10,1,103,15,10,1,4,4,10,2,109,7,10,3,8,1002,8,-1,10,101,1,10,10,4,10,1008,8,0,10,4,10,1001,8,0,301,1006,0,63,2,105,6,10,101,1,9,9,1007,9,1018,10,1005,10,15,99,109,650,104,0,104,1,21102,387508441116,1,1,21102,1,345,0,1106,0,449,21102,1,387353256852,1,21102,1,356,0,1105,1,449,3,10,104,0,104,1,3,10,104,0,104,0,3,10,104,0,104,1,3,10,104,0,104,1,3,10,104,0,104,0,3,10,104,0,104,1,21101,179410308315,0,1,21102,1,403,0,1106,0,449,21101,206199495827,0,1,21102,414,1,0,1105,1,449,3,10,104,0,104,0,3,10,104,0,104,0,21102,718086758760,1,1,21102,1,437,0,1105,1,449,21101,838429573908,0,1,21102,448,1,0,1106,0,449,99,109,2,21202,-1,1,1,21102,1,40,2,21102,480,1,3,21101,470,0,0,1105,1,513,109,-2,2105,1,0,0,1,0,0,1,109,2,3,10,204,-1,1001,475,476,491,4,0,1001,475,1,475,108,4,475,10,1006,10,507,1102,0,1,475,109,-2,2106,0,0,0,109,4,2101,0,-1,512,1207,-3,0,10,1006,10,530,21101,0,0,-3,21202,-3,1,1,21201,-2,0,2,21102,1,1,3,21102,549,1,0,1105,1,554,109,-4,2106,0,0,109,5,1207,-3,1,10,1006,10,577,2207,-4,-2,10,1006,10,577,22102,1,-4,-4,1106,0,645,22102,1,-4,1,21201,-3,-1,2,21202,-2,2,3,21101,596,0,0,1106,0,554,22101,0,1,-4,21102,1,1,-1,2207,-4,-2,10,1006,10,615,21101,0,0,-1,22202,-2,-1,-2,2107,0,-3,10,1006,10,637,21201,-1,0,1,21101,637,0,0,106,0,512,21202,-2,-1,-2,22201,-4,-2,-4,109,-5,2106,0,0")
+
+(defn run-program
+  "Executes the intcode computer using the given program and input."
+  [prog-str input]  
+  (loop [prog (indexed (vec (map #(str->bigint %) (str/split prog-str #","))))
+         input input
+         instr-ptr 0
+         output-value nil
+         relative-base 0
+         paused false
+         halted false]
+    (if halted
+      nil 
+      (if paused
+        (do
+          (println output-value)
+          #_(let [[program output-value paused halted i relative-base] (intcode prog nil input instr-ptr output-value relative-base)]
+            (recur program input i output-value relative-base paused halted)))                                        
+        (let [[program output-value paused halted i relative-base] (intcode prog nil input instr-ptr output-value relative-base)]
+          (recur program input i output-value relative-base paused halted))))))
+
+
