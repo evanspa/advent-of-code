@@ -979,16 +979,152 @@
 (def xyz-regex #"<x=(.*), y=(.*), z=(.*)>")
 
 (defn parse-xyz-vals
+  "Parses xyz string-values into a sequence of 3 elements.  E.g., the string: '<x=3, y=2, z=-3>' parses into the sequence: (3 2 -3)."
   [s]
   (map #(Integer/parseInt %) (rest (re-matches xyz-regex s))))
 
+(def day-12-test-input "<x=-1, y=0, z=2>\n<x=2, y=-10, z=-7>\n<x=4, y=-8, z=8>\n<x=3, y=5, z=-1>")
 (def day-12-input "<x=3, y=2, z=-6>\n<x=-13, y=18, z=10>\n<x=-8, y=-1, z=13>\n<x=5, y=10, z=4>\n")
 
 (defn str->xyz-vectors
+  "Converts a collection of xyz vectors in raw string format into a sequence of xyz vectors."
   [xyz-vals-str]
   (map parse-xyz-vals (line-seq (BufferedReader. (StringReader. xyz-vals-str)))))
 
+(defn bodies
+  "Creates a sequence body objects from raw xyz vectors.  The velocity of each body will default to [0 0 0]."
+  [xyz-vectors]
+  (map (fn [xyz-vector] {:position (vec xyz-vector) :velocity [0 0 0]}) xyz-vectors))
 
+(defn new-velocity
+  [b1-velocity b1-pos b2-pos]
+  (if (< b1-pos b2-pos)
+    (inc b1-velocity)
+    (if (> b1-pos b2-pos)
+      (dec b1-velocity)
+      b1-velocity)))
 
+(defn new-position
+  [{[b1-pos-x b1-pos-y b1-pos-z] :position
+    [b1-vel-x b1-vel-y b1-vel-z] :velocity :as b1}]
+  (assoc b1 :position [(+ b1-pos-x b1-vel-x)
+                       (+ b1-pos-y b1-vel-y)
+                       (+ b1-pos-z b1-vel-z)]))
 
+(defn apply-gravity
+  [{[b1-pos-x b1-pos-y b1-pos-z] :position
+    [b1-vel-x b1-vel-y b1-vel-z] :velocity :as b1}
+   {[b2-pos-x b2-pos-y b2-pos-z] :position :as b2}]
+  (assoc b1 :velocity [(new-velocity b1-vel-x b1-pos-x b2-pos-x)
+                       (new-velocity b1-vel-y b1-pos-y b2-pos-y)
+                       (new-velocity b1-vel-z b1-pos-z b2-pos-z)]))
 
+(defn apply-gravity-to-bodies
+  [[b1 b2 b3 b4]]
+  [(-> b1
+       (apply-gravity b2)
+       (apply-gravity b3)
+       (apply-gravity b4))
+   (-> b2
+       (apply-gravity b1)
+       (apply-gravity b3)
+       (apply-gravity b4))
+   (-> b3
+       (apply-gravity b1)
+       (apply-gravity b2)
+       (apply-gravity b4))
+   (-> b4
+       (apply-gravity b1)
+       (apply-gravity b2)
+       (apply-gravity b3))])
+
+(defn apply-velocity-to-bodies
+  [bodies]
+  (-> bodies
+      (update 0 new-position)
+      (update 1 new-position)
+      (update 2 new-position)
+      (update 3 new-position)))
+
+(defn apply-total-energy-to-bodies
+  [bodies]
+  (map (fn [{positions :position velocities :velocity :as body}]
+         (assoc body :total-energy (* (apply + (map #(Math/abs %) positions))
+                                      (apply + (map #(Math/abs %) velocities)))))
+       bodies))
+
+(defn run-solution-12-p1
+  []
+  (let [bodies (bodies (str->xyz-vectors day-12-input))]    
+    (apply + (map :total-energy
+                  (nth (iterate #(-> %
+                                     (apply-gravity-to-bodies)                                  
+                                     (apply-velocity-to-bodies)
+                                     (apply-total-energy-to-bodies))
+                                bodies)
+                       1000)))))
+
+(defn slot-values
+  [bodies body-index slot-index]
+  (let [body (nth bodies body-index)]    
+    [(get-in body [:position slot-index])
+     (get-in body [:velocity slot-index])]))
+
+(defn steps-until-slot-cycle
+  "Ugh, had to look up solution from Internet.  Found this one:  https://www.reddit.com/r/adventofcode/comments/e9jxh2/help_2019_day_12_part_2_what_am_i_not_seeing/far9cgu?utm_source=share&utm_medium=web2x
+
+  This function will return the number of steps (cycles) necessary until a particular slot (x, y or z) repeats its initial state across all 4 moons.  slot-index will be 0, 1 or 2 for the x, y and z slots respectively."
+  [bodies slot-index]
+  (let [[moon-0-initial-x-pos moon-0-initial-x-vel] (slot-values bodies 0 slot-index)
+        [moon-1-initial-x-pos moon-1-initial-x-vel] (slot-values bodies 1 slot-index)
+        [moon-2-initial-x-pos moon-2-initial-x-vel] (slot-values bodies 2 slot-index)
+        [moon-3-initial-x-pos moon-3-initial-x-vel] (slot-values bodies 3 slot-index)]    
+    (loop [next-bodies (-> bodies
+                           (apply-gravity-to-bodies)
+                           (apply-velocity-to-bodies))
+           step 1]
+      (let [[moon-0-next-x-pos moon-0-next-x-vel] (slot-values next-bodies 0 slot-index)
+            [moon-1-next-x-pos moon-1-next-x-vel] (slot-values next-bodies 1 slot-index)
+            [moon-2-next-x-pos moon-2-next-x-vel] (slot-values next-bodies 2 slot-index)
+            [moon-3-next-x-pos moon-3-next-x-vel] (slot-values next-bodies 3 slot-index)]        
+        (if (and (== moon-0-next-x-pos moon-0-initial-x-pos)
+                 (== moon-0-next-x-vel moon-0-initial-x-vel)
+                 (== moon-1-next-x-pos moon-1-initial-x-pos)
+                 (== moon-1-next-x-vel moon-1-initial-x-vel)
+                 (== moon-2-next-x-pos moon-2-initial-x-pos)
+                 (== moon-2-next-x-vel moon-2-initial-x-vel)
+                 (== moon-3-next-x-pos moon-3-initial-x-pos)
+                 (== moon-3-next-x-vel moon-3-initial-x-vel))
+          step
+          (recur (-> next-bodies
+                     (apply-gravity-to-bodies)
+                     (apply-velocity-to-bodies))
+                 (inc step)))))))
+
+(defn gcd
+  ([a b]
+   (.gcd (biginteger a) (biginteger b)))
+  ([a b c]
+   (gcd (gcd a b) c)))
+
+(defn lcm
+  ([a b]
+   (/ (* a b) (gcd a b)))
+  ([a b c]
+   (lcm (lcm a b) c)))
+
+(defn steps-until-cycle
+  [input]
+  (let [the-bodies (bodies (str->xyz-vectors input))
+        steps-until-x-cycle (steps-until-slot-cycle the-bodies 0)
+        steps-until-y-cycle (steps-until-slot-cycle the-bodies 1)
+        steps-until-z-cycle (steps-until-slot-cycle the-bodies 2)]
+    (lcm steps-until-x-cycle steps-until-y-cycle steps-until-z-cycle)))
+
+(defn run-solution-12-p2-test-input
+  []
+  (steps-until-cycle day-12-test-input))
+
+(defn run-solution-12-p2
+  []
+  (steps-until-cycle day-12-input))
