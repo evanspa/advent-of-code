@@ -1071,8 +1071,8 @@
      (get-in body [:velocity slot-index])]))
 
 (defn steps-until-slot-cycle
-  "Ugh, had to look up solution from Internet.  Found this one:  https://www.reddit.com/r/adventofcode/comments/e9jxh2/help_2019_day_12_part_2_what_am_i_not_seeing/far9cgu?utm_source=share&utm_medium=web2x
-
+  "Ugh, had to look up solution from Internet.  Found this one:\n https://www.reddit.com/r/adventofcode/comments/e9jxh2/help_2019_day_12_part_2_what_am_i_not_seeing/far9cgu?utm_source=share&utm_medium=web2x
+  \n\n
   This function will return the number of steps (cycles) necessary until a particular slot (x, y or z) repeats its initial state across all 4 moons.  slot-index will be 0, 1 or 2 for the x, y and z slots respectively."
   [bodies slot-index]
   (let [[moon-0-initial-x-pos moon-0-initial-x-vel] (slot-values bodies 0 slot-index)
@@ -1128,3 +1128,141 @@
 (defn run-solution-12-p2
   []
   (steps-until-cycle day-12-input))
+
+(defn compute-tile-counts
+  "Executes the intcode computer using the given program and outputs the number of various tile types encountered."
+  [prog-str]  
+  (loop [prog (indexed (vec (map #(str->bigint %) (str/split prog-str #","))))         
+         instr-ptr 0
+         output-value nil
+         relative-base 0
+         paused false
+         halted false
+         tile-key nil
+         tiles {:aggregates {:empty-count 0 :wall-count 0 :block-count 0 :h-paddle-count 0 :ball-count 0}}
+         pause-count 0]
+    (if halted
+      tiles
+      (let [[prog output-value paused halted instr-ptr relative-base] (intcode prog nil nil instr-ptr output-value relative-base)]
+        (if paused
+          (case pause-count
+            0 (let [tile-key [output-value]]
+                (recur prog
+                       instr-ptr
+                       output-value
+                       relative-base
+                       paused
+                       halted
+                       tile-key
+                       (assoc tiles tile-key nil)
+                       (inc pause-count)))
+            1 (let [tile-key (conj tile-key output-value)]
+                (recur prog
+                       instr-ptr
+                       output-value
+                       relative-base
+                       paused
+                       halted
+                       tile-key
+                       (assoc tiles tile-key nil)
+                       (inc pause-count)))
+            2 (let [count-key (case output-value
+                                0 :empty-count
+                                1 :wall-count
+                                2 :block-count
+                                3 :h-paddle-count
+                                4 :ball-count)]
+                (recur prog
+                       instr-ptr
+                       output-value
+                       relative-base
+                       paused
+                       halted
+                       tile-key
+                       (-> tiles
+                           (assoc tile-key output-value)
+                           (update-in [:aggregates count-key] inc))
+                       0)))
+          (recur prog
+                 instr-ptr
+                 output-value
+                 relative-base
+                 paused
+                 halted
+                 tile-key
+                 tiles
+                 pause-count))))))
+
+(def day-13-input
+  (clojure.string/replace (slurp (resource "input_13.txt")) #"\R" "")) ; remove newlines
+
+(defn run-solution-13-p1
+  []
+  (let [tile-counts (compute-tile-counts day-13-input)]
+    (get-in tile-counts [:aggregates :block-count])))
+
+(defn play-arcade-game
+  "Executes the intcode computer using the given program and plays the arcade game."
+  [prog-str]  
+  (loop [prog (indexed (vec (map #(str->bigint %) (str/split prog-str #","))))         
+         instr-ptr 0
+         output-value nil
+         relative-base 0
+         paused false
+         halted false
+         tile-key nil
+         tiles {:aggregates {:empty-count 0 :wall-count 0 :block-count 0 :h-paddle-count 0 :ball-count 0}}
+         pause-count 0]
+    (if halted
+      tiles
+      (let [[prog output-value paused halted instr-ptr relative-base] (intcode prog nil nil instr-ptr output-value relative-base)]
+        (if paused
+          (case pause-count
+            0 (let [tile-key [output-value]]
+                (recur prog
+                       instr-ptr
+                       output-value
+                       relative-base
+                       paused
+                       halted
+                       tile-key
+                       (assoc tiles tile-key nil)
+                       (inc pause-count)))
+            1 (let [tile-key (conj tile-key output-value)]
+                (recur prog
+                       instr-ptr
+                       output-value
+                       relative-base
+                       paused
+                       halted
+                       tile-key
+                       (assoc tiles tile-key nil)
+                       (inc pause-count)))
+            2 (let [count-key (case output-value
+                                0 :empty-count
+                                1 :wall-count
+                                2 :block-count
+                                3 :h-paddle-count
+                                4 :ball-count)]
+                (recur prog
+                       instr-ptr
+                       output-value
+                       relative-base
+                       paused
+                       halted
+                       tile-key
+                       (-> tiles
+                           (assoc tile-key output-value)
+                           (update-in [:aggregates count-key] inc))
+                       0)))
+          (recur prog
+                 instr-ptr
+                 output-value
+                 relative-base
+                 paused
+                 halted
+                 tile-key
+                 tiles
+                 pause-count))))))
+
+
