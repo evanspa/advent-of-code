@@ -1199,70 +1199,69 @@
 (defn run-solution-13-p1
   []
   (let [tile-counts (compute-tile-counts day-13-input)]
-    (get-in tile-counts [:aggregates :block-count])))
+    (get-in tile-counts [:aggregates :block-count])
+    (get-in tile-counts [:aggregates])))
 
 (defn play-arcade-game
   "Executes the intcode computer using the given program and plays the arcade game."
   [prog-str]  
-  (loop [prog (indexed (vec (map #(str->bigint %) (str/split prog-str #","))))         
-         instr-ptr 0
-         output-value nil
-         relative-base 0
+  (loop [prog (assoc (indexed (vec (map #(str->bigint %) (str/split prog-str #",")))) 0 2) ; start w/2 quarters         
+         i-ptr 0
+         out-val nil
+         rel-base 0
          paused false
          halted false
          tile-key nil
-         tiles {:aggregates {:empty-count 0 :wall-count 0 :block-count 0 :h-paddle-count 0 :ball-count 0}}
-         pause-count 0]
+         game {:ball-location nil :blocks {} :paddle-location nil :score nil}
+         input 0 ; start with joystick in neutral
+         pause-cnt 0]
     (if halted
-      tiles
-      (let [[prog output-value paused halted instr-ptr relative-base] (intcode prog nil nil instr-ptr output-value relative-base)]
-        (if paused
-          (case pause-count
-            0 (let [tile-key [output-value]]
-                (recur prog
-                       instr-ptr
-                       output-value
-                       relative-base
-                       paused
-                       halted
-                       tile-key
-                       (assoc tiles tile-key nil)
-                       (inc pause-count)))
-            1 (let [tile-key (conj tile-key output-value)]
-                (recur prog
-                       instr-ptr
-                       output-value
-                       relative-base
-                       paused
-                       halted
-                       tile-key
-                       (assoc tiles tile-key nil)
-                       (inc pause-count)))
-            2 (let [count-key (case output-value
-                                0 :empty-count
-                                1 :wall-count
-                                2 :block-count
-                                3 :h-paddle-count
-                                4 :ball-count)]
-                (recur prog
-                       instr-ptr
-                       output-value
-                       relative-base
-                       paused
-                       halted
-                       tile-key
-                       (-> tiles
-                           (assoc tile-key output-value)
-                           (update-in [:aggregates count-key] inc))
-                       0)))
-          (recur prog
-                 instr-ptr
-                 output-value
-                 relative-base
-                 paused
-                 halted
-                 tile-key
-                 tiles
-                 pause-count))))))
+      game
+      (let [[prog out-val paused halted i-ptr rel-base] (intcode prog nil input i-ptr out-val rel-base)]
+        (if paused          
+          (case pause-cnt
+            0 (let [tile-key [out-val]]
+                (recur prog i-ptr out-val rel-base paused halted tile-key game input (inc pause-cnt)))
+            1 (let [tile-key (conj tile-key out-val)]
+                (recur prog i-ptr out-val rel-base paused halted tile-key game input (inc pause-cnt)))
+            2 (if (= tile-key [-1 0])
+                (do
+                  (println "New score: " out-val ", block count: " (count (:blocks game)))
+                  (recur prog i-ptr out-val rel-base paused halted nil (assoc game :score out-val) 0 0))
+                (case out-val
+                  0 (recur prog i-ptr out-val rel-base paused halted nil game input 0) ; empty tile (ignore)
+                  1 (recur prog i-ptr out-val rel-base paused halted nil game input 0) ; wall tile (ignore)
+                  2 (recur prog i-ptr out-val rel-base paused halted nil
+                           (assoc-in game [:blocks tile-key] :block)
+                           input
+                           0)
+                  3 (recur prog i-ptr out-val rel-base paused halted nil                           
+                           (assoc game :paddle-location tile-key)
+                           input
+                           0)                  
+                  4 (let [paddle-loc (:paddle-location game)]
+                      (if (not (nil? paddle-loc))
+                        (let [paddle-x (first paddle-loc)
+                              ball-x (first tile-key)]
+                          (recur prog i-ptr out-val rel-base paused halted nil                                        
+                                 (-> game
+                                     (assoc :ball-location tile-key)
+                                     (update-in [:blocks] #(dissoc % tile-key)))
+                                 (if (> ball-x paddle-x)
+                                   1
+                                   (if (< ball-x paddle-x)
+                                     -1
+                                     0))
+                                 0))
+                        (recur prog i-ptr out-val rel-base paused halted nil
+                               (-> game
+                                   (assoc :ball-location tile-key)
+                                   (update-in [:blocks] #(dissoc % tile-key)))                                      
+                               input
+                               0))))))
+          (recur prog i-ptr out-val rel-base paused halted tile-key game input pause-cnt))))))
 
+(defn run-solution-13-p2
+  []
+  (play-arcade-game day-13-input))
 
