@@ -1227,10 +1227,16 @@
             2 (if (= tile-key [-1 0])
                 (do
                   (println "New score: " out-val ", block count: " (count (:blocks game)))
-                  (recur prog i-ptr out-val rel-base paused halted nil (assoc game :score out-val) 0 0))
+                  (recur prog i-ptr out-val rel-base paused halted nil (assoc game :score out-val) input 0))
                 (case out-val
-                  0 (recur prog i-ptr out-val rel-base paused halted nil game input 0) ; empty tile (ignore)
-                  1 (recur prog i-ptr out-val rel-base paused halted nil game input 0) ; wall tile (ignore)
+                  0 (recur prog i-ptr out-val rel-base paused halted nil
+                           (update-in game [:blocks] #(dissoc % tile-key)) ; empty tile may overwrite a block
+                           input
+                           0) 
+                  1 (recur prog i-ptr out-val rel-base paused halted nil
+                           (update-in game [:blocks] #(dissoc % tile-key)) ; wall tile may overwrite a block
+                           input
+                           0) 
                   2 (recur prog i-ptr out-val rel-base paused halted nil
                            (assoc-in game [:blocks tile-key] :block)
                            input
