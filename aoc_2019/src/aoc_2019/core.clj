@@ -42,7 +42,7 @@
   (is (== 33583 (required-fuel 100756))))
 
 (defn intcode-simple
-  [program]  
+  [program]
   (loop [result program i 0]
     (let [opcode (nth result i)
           op (case opcode
@@ -51,7 +51,7 @@
                99 nil
                "error")]
       (if (== opcode 99)
-        result        
+        result
         (if (nil? op)
           (print "something went wrong")
           (recur (assoc result
@@ -66,7 +66,7 @@
 
 (defn intcode-csv
   [program-csv]
-  (let [result (intcode-simple (vec (map #(str->bigint %) (str/split program-csv #","))))]    
+  (let [result (intcode-simple (vec (map #(str->bigint %) (str/split program-csv #","))))]
     (reduce #(str %1 "," %2) (first result) (rest result))))
 
 ;; orig input 1,0,0,3,1,1,2,3,1,3,4,3,1,5,0,3,2,9,1,19,1,19,5,23,1,23,6,27,2,9,27,31,1,5,31,35,1,35,10,39,1,39,10,43,2,43,9,47,1,6,47,51,2,51,6,55,1,5,55,59,2,59,10,63,1,9,63,67,1,9,67,71,2,71,6,75,1,5,75,79,1,5,79,83,1,9,83,87,2,87,10,91,2,10,91,95,1,95,9,99,2,99,9,103,2,10,103,107,2,9,107,111,1,111,5,115,1,115,2,119,1,119,6,0,99,2,0,14,0
@@ -76,9 +76,9 @@
   (intcode-csv "1,12,2,3,1,1,2,3,1,3,4,3,1,5,0,3,2,9,1,19,1,19,5,23,1,23,6,27,2,9,27,31,1,5,31,35,1,35,10,39,1,39,10,43,2,43,9,47,1,6,47,51,2,51,6,55,1,5,55,59,2,59,10,63,1,9,63,67,1,9,67,71,2,71,6,75,1,5,75,79,1,5,79,83,1,9,83,87,2,87,10,91,2,10,91,95,1,95,9,99,2,99,9,103,2,10,103,107,2,9,107,111,1,111,5,115,1,115,2,119,1,119,6,0,99,2,0,14,0"))
 
 (defn run-solution-2-p2
-  []  
+  []
   (let [input-template [1 '_ '_ 3 1 1 2 3 1 3 4 3 1 5 0 3 2 9 1 19 1 19 5 23 1 23 6 27 2 9 27 31 1 5 31 35 1 35 10 39 1 39 10 43 2 43 9 47 1 6 47 51 2 51 6 55 1 5 55 59 2 59 10 63 1 9 63 67 1 9 67 71 2 71 6 75 1 5 75 79 1 5 79 83 1 9 83 87 2 87 10 91 2 10 91 95 1 95 9 99 2 99 9 103 2 10 103 107 2 9 107 111 1 111 5 115 1 115 2 119 1 119 6 0 99 2 0 14 0]]
-    (let [solution-inputs 
+    (let [solution-inputs
           (first (for [pos-1-val (range 91)
                        pos-2-val (range 91)
                        :let [inputs (-> input-template
@@ -88,7 +88,7 @@
                        :when (== result 19690720)]
                    [pos-1-val pos-2-val]))]
       (when (not (empty? solution-inputs))
-        (let [[noun verb] solution-inputs]          
+        (let [[noun verb] solution-inputs]
           (+ verb (* 100 noun)))))))
 
 (defn manhatten-distance
@@ -107,7 +107,7 @@
               (let [coordinates (let [direction (first p2)
                                       value (Integer/parseInt (subs p2 1))
                                       prev-coord (first (last p1))
-                                      prev-cum-sum (second (last p1))                                      
+                                      prev-cum-sum (second (last p1))
                                       prev-coord-x (first prev-coord)
                                       prev-coord-y (second prev-coord)]
                                   (if (= direction \U)
@@ -115,13 +115,13 @@
                                          (range 1 (inc value)))
                                     (if (= direction \D)
                                       (map (fn [step] [[prev-coord-x (+ prev-coord-y (* -1 step))] (+ prev-cum-sum step)])
-                                           (range 1 (inc value)))                                      
+                                           (range 1 (inc value)))
                                       (if (= direction \L)
                                         (map (fn [step] [[(+ prev-coord-x (* -1 step)) prev-coord-y] (+ prev-cum-sum step)])
-                                             (range 1 (inc value)))                                        
+                                             (range 1 (inc value)))
                                         (if (= direction \R)
                                           (map (fn [step] [[(+ prev-coord-x step) prev-coord-y] (+ prev-cum-sum step)])
-                                               (range 1 (inc value)))                                          
+                                               (range 1 (inc value)))
                                           nil)))))]
                 (if coordinates
                   (apply conj p1 coordinates)
@@ -133,7 +133,7 @@
   [coordinates]
   (reduce (fn [coords-map coord]
             (let [pt (first coord)
-                  cum-sum (second coord)                  
+                  cum-sum (second coord)
                   existing-coord (get coords-map pt)]
               (if existing-coord
                 coords-map ; don't overwrite existing entry
@@ -228,7 +228,7 @@
          prev-char nil
          contains-double false
          increasing true]
-    (let [current-char (first chars)]      
+    (let [current-char (first chars)]
       (if (empty? chars)
         (and contains-double increasing)
         (if (nil? prev-char)
@@ -256,20 +256,20 @@
 (defn is-password-p2
   [x]
   (loop [chars (seq (str x))
-         prev-char nil         
+         prev-char nil
          increasing true
          repeats {0 0 1 0 2 0 3 0 4 0 5 0 6 0 7 0 8 0 9 0}]
-    (let [current-char (first chars)]      
+    (let [current-char (first chars)]
       (if (empty? chars)
         (and increasing
-             (contains-double repeats))        
+             (contains-double repeats))
         (if (nil? prev-char)
           (recur (rest chars) current-char increasing repeats)
           (let [prev-val (Character/digit prev-char 10)
                 current-val (Character/digit current-char 10)]
             (let [matches-prev (== prev-val current-val)]
               (recur (rest chars)
-                     current-char                     
+                     current-char
                      (and increasing (<= prev-val current-val))
                      (if matches-prev
                        (update repeats current-val inc)
@@ -296,7 +296,7 @@
 
 (defn address-param
   [prog instr-ptr offset mode relative-base]
-  (let [base-addr (get prog (+ instr-ptr offset))]    
+  (let [base-addr (get prog (+ instr-ptr offset))]
     (case mode
       0 base-addr ; positional
       2 (+ base-addr relative-base)))) ; relative
@@ -309,7 +309,7 @@
           0 (get prog (get prog (+ i offset)))  ; position
           1 (get prog (+ i offset))             ; immediate
           2 (get prog (+ (get prog (+ i offset)) relative-base)))] ; relative
-   (if val val 0))) 
+   (if val val 0)))
 
 (defn perform-op
   ([prog i op param-1-mode param-2-mode relative-base]
@@ -341,7 +341,7 @@
 
 (defn intcode
   "Intcode computer."
-  [program phase-setting input instruction-pointer output-value relative-base]  
+  [program phase-setting input instruction-pointer output-value relative-base]
   (loop [program program
          paused false
          halted false
@@ -349,12 +349,12 @@
          phase-setting phase-setting
          input input
          output-value output-value
-         relative-base relative-base]    
+         relative-base relative-base]
     (if (or paused halted)
-      [program output-value paused halted i relative-base]      
+      [program output-value paused halted i relative-base]
       (let [opcode-str (str (get program i))
             opcode-chars (seq opcode-str)
-            [param-1-mode param-2-mode param-3-mode] (param-modes opcode-chars)]        
+            [param-1-mode param-2-mode param-3-mode] (param-modes opcode-chars)]
         (cond
           (str/ends-with? opcode-str "1") ; add
           (recur (perform-op program i + param-1-mode param-2-mode param-3-mode relative-base)
@@ -364,8 +364,8 @@
                  phase-setting
                  input
                  output-value
-                 relative-base)          
-          
+                 relative-base)
+
           (str/ends-with? opcode-str "2") ; mult
           (recur (perform-op program i * param-1-mode param-2-mode param-3-mode relative-base)
                  false
@@ -374,12 +374,12 @@
                  phase-setting
                  input
                  output-value
-                 relative-base)        
+                 relative-base)
 
           (str/ends-with? opcode-str "3") ; read an input val
-          (do            
+          (do
             (recur (assoc program
-                          (address-param program i 1 param-1-mode relative-base)                            
+                          (address-param program i 1 param-1-mode relative-base)
                           (if phase-setting phase-setting input))
                    false
                    false
@@ -387,10 +387,10 @@
                    nil
                    input
                    output-value
-                   relative-base))                   
+                   relative-base))
 
           (str/ends-with? opcode-str "4") ; write
-          (do            
+          (do
             (recur program
                    true
                    false
@@ -398,7 +398,7 @@
                    phase-setting
                    input
                    (value-param program i param-1-mode 1 relative-base)
-                   relative-base))          
+                   relative-base))
 
           (str/ends-with? opcode-str "5") ; jump-if-true
           (let [jump-test (value-param program i param-1-mode 1 relative-base)]
@@ -411,7 +411,7 @@
                    phase-setting
                    input
                    output-value
-                   relative-base))                   
+                   relative-base))
 
           (str/ends-with? opcode-str "6") ; jump-if-false
           (let [jump-test (value-param program i param-1-mode 1 relative-base)]
@@ -424,25 +424,25 @@
                    phase-setting
                    input
                    output-value
-                   relative-base))          
+                   relative-base))
 
           (str/ends-with? opcode-str "7") ; less than
           (recur (assoc program
-                        (address-param program i 3 param-3-mode relative-base)                        
+                        (address-param program i 3 param-3-mode relative-base)
                         (if (< (value-param program i param-1-mode 1 relative-base)
                                (value-param program i param-2-mode 2 relative-base))
                           1
                           0))
                  false
                  false
-                 (+ i 4)                   
+                 (+ i 4)
                  phase-setting
                  input
                  output-value
-                 relative-base)          
+                 relative-base)
 
           (str/ends-with? opcode-str "8") ; equals
-          (recur (assoc program                                                  
+          (recur (assoc program
                         (address-param program i 3 param-3-mode relative-base)
                         (if (== (value-param program i param-1-mode 1 relative-base)
                                 (value-param program i param-2-mode 2 relative-base))
@@ -450,11 +450,11 @@
                           0))
                  false
                  false
-                 (+ i 4)                   
+                 (+ i 4)
                  phase-setting
                  input
                  output-value
-                 relative-base)                   
+                 relative-base)
 
           (str/ends-with? opcode-str "99")
           (recur program true true nil nil nil output-value relative-base)
@@ -471,7 +471,7 @@
 
 (defn run-program
   "Executes the intcode computer using the given program and input."
-  [prog-str input]  
+  [prog-str input]
   (loop [prog (indexed (vec (map #(str->bigint %) (str/split prog-str #","))))
          input input
          instr-ptr 0
@@ -480,12 +480,12 @@
          paused false
          halted false]
     (if halted
-      nil 
+      nil
       (if paused
         (do
           (println output-value)
           (let [[program output-value paused halted i relative-base] (intcode prog nil input instr-ptr output-value relative-base)]
-            (recur program input i output-value relative-base paused halted)))                                        
+            (recur program input i output-value relative-base paused halted)))
         (let [[program output-value paused halted i relative-base] (intcode prog nil input instr-ptr output-value relative-base)]
           (recur program input i output-value relative-base paused halted))))))
 
@@ -511,7 +511,7 @@
   [object parent-pred orbital-map]
   (loop [count 0
          parent (get orbital-map object)]
-    (if (parent-pred parent) 
+    (if (parent-pred parent)
       count
       (recur (inc count) (get orbital-map parent)))))
 
@@ -547,7 +547,7 @@
   )
 
 (defn run-solution-6-p2
-  []  
+  []
   (let [orbital-map (orbital-map-str->map (slurp (resource "orbital_map.txt")))
         common-parent (common-parent "SAN" "YOU" orbital-map)]
     (+ (count-orbits-to-parent "SAN" #(= % common-parent) orbital-map)
@@ -561,23 +561,23 @@
         amp-d {:amp :d :prog amp-program :ptr 0 :phase-setting (nth phase-setting-sequence 3) :input nil :halted false :output nil :next-amp :e :relative-base 0}
         amp-e {:amp :e :prog amp-program :ptr 0 :phase-setting (nth phase-setting-sequence 4) :input nil :halted false :output nil :next-amp :a :relative-base 0}]
     (loop [amp-programs {:a amp-a, :b amp-b, :c amp-c, :d amp-d, :e amp-e}
-           current-amp-key :a]      
-      (let [current-amp (get amp-programs current-amp-key)]                                        
+           current-amp-key :a]
+      (let [current-amp (get amp-programs current-amp-key)]
         (if (:halted current-amp)
           (if (= current-amp-key :e)
             (:output current-amp)
-            (recur amp-programs (:next-amp current-amp)))                                        
+            (recur amp-programs (:next-amp current-amp)))
           (let [[result-program
                  output
                  paused
                  halted
                  inst-ptr
                  relative-base] (intcode (:prog current-amp)
-                                         (:phase-setting current-amp)                                                                   
+                                         (:phase-setting current-amp)
                                          (:input current-amp)
                                          (:ptr current-amp)
                                          (:output current-amp)
-                                         (:relative-base current-amp))                
+                                         (:relative-base current-amp))
                 amp-programs (-> amp-programs
                                  (assoc-in [current-amp-key :output] output)
                                  (assoc-in [current-amp-key :prog] result-program)
@@ -585,12 +585,12 @@
                                  (assoc-in [current-amp-key :relative-base] relative-base)
                                  (assoc-in [current-amp-key :halted] halted)
                                  (assoc-in [current-amp-key :phase-setting] nil)
-                                 (assoc-in [(:next-amp current-amp) :input] output))]            
+                                 (assoc-in [(:next-amp current-amp) :input] output))]
             (recur amp-programs (:next-amp current-amp))))))))
 
 (defn max-thruster-signal
   [amp-program phase-setting-range-start phase-setting-range-end]
-  (loop [phase-setting-permutations (phase-setting-permutations phase-setting-range-start phase-setting-range-end)         
+  (loop [phase-setting-permutations (phase-setting-permutations phase-setting-range-start phase-setting-range-end)
          max-thruster-signal 0]
     (if (empty? phase-setting-permutations)
       max-thruster-signal
@@ -623,11 +623,11 @@
 (defn indexed-layers
   [input-str]
   (let [layers (layers input-str)]
-    (map-indexed (fn [idx layer] [idx layer]) layers)))  
+    (map-indexed (fn [idx layer] [idx layer]) layers)))
 
 (defn count-digits-in-layer
-  [[layer-idx layer] digit]  
-  {:layer-idx layer-idx 
+  [[layer-idx layer] digit]
+  {:layer-idx layer-idx
    :count (count (filter #(== %1 digit) layer))})
 
 (defn run-solution-8-p1
@@ -659,12 +659,12 @@
 (defn slope
   [[pt1-x pt1-y] [pt2-x pt2-y]]
   (let [delta-x (- pt2-x pt1-x)]
-    (if (not (== delta-x 0))      
+    (if (not (== delta-x 0))
       (/ (- pt2-y pt1-y) delta-x)
       nil)))
 
 #_(defn collinear?
-  [p1 p2 p3]  
+  [p1 p2 p3]
   (= (slope p1 p2) (slope p2 p3)))
 
 #_(defn between?
@@ -707,13 +707,13 @@
                (merge asteroids (line-str->asteroids line row)))))))
 
 (defn y
-  [x [pt-x pt-y] slope]  
+  [x [pt-x pt-y] slope]
   (+ (* slope (- x pt-x)) pt-y))
 
 (defn points-between
   [[p1-x p1-y :as p1] [p2-x p2-y :as p2]]
   (let [slope (slope p1 p2)]
-    (if slope      
+    (if slope
       (map (fn [x] [x (y x p2 slope)])
            (if (> p1-x p2-x)
              (range (dec p1-x) p2-x -1)
@@ -727,7 +727,7 @@
   [pt1 pt2 asteroid-map]
   (loop [points-between (points-between pt1 pt2)
          line-of-sight true]
-    (if (empty? points-between)      
+    (if (empty? points-between)
       line-of-sight
       (recur (rest points-between)
              (and line-of-sight
@@ -741,12 +741,12 @@
 
 (defn compute-detections
   [asteroid-map]
-  (let [all-asteroid-pts (keys asteroid-map)]    
+  (let [all-asteroid-pts (keys asteroid-map)]
     (loop [asteroid-map asteroid-map
            inner-asteroid-pts all-asteroid-pts]
       (if (empty? inner-asteroid-pts)
         asteroid-map
-        (let [asteroid (first inner-asteroid-pts)]        
+        (let [asteroid (first inner-asteroid-pts)]
           (recur (update-in asteroid-map
                             [asteroid :detections]
                             +
@@ -768,7 +768,7 @@
 
 (defn angle
   [[pt-x pt-y] [origin-x origin-y]]
-  (let [opposite-side (- pt-y origin-y)]       
+  (let [opposite-side (- pt-y origin-y)]
     (Math/toDegrees (Math/asin (/ opposite-side (Math/hypot opposite-side (- pt-x origin-x)))))))
 
 (defn quadrant
@@ -783,18 +783,18 @@
 (defn compare-asteroids
   "Compares 2 asteroids based on their angle relative to origin and a clockwise rotation starting
   from the vertical position."
-  [[pt1-x pt1-y :as pt1] [pt2-x pt2-y :as pt2] [origin-x origin-y :as origin]]  
+  [[pt1-x pt1-y :as pt1] [pt2-x pt2-y :as pt2] [origin-x origin-y :as origin]]
   (let [pt1-quad (quadrant pt1 origin)
         pt2-quad (quadrant pt2 origin)
         quad-compare (compare pt1-quad pt2-quad)]
     (if (== quad-compare 0) ; pt1 and pt2 are in same quadrant
       (let [pt1-angle (angle pt1 origin)
-            pt2-angle (angle pt2 origin)]        
-        (case pt1-quad 
-          1 (* 1 (compare pt1-angle pt2-angle)) 
-          2 (* 1 (compare pt1-angle pt2-angle))        
-          3 (* -1 (compare pt1-angle pt2-angle)) 
-          4 (* -1 (compare pt1-angle pt2-angle)))) 
+            pt2-angle (angle pt2 origin)]
+        (case pt1-quad
+          1 (* 1 (compare pt1-angle pt2-angle))
+          2 (* 1 (compare pt1-angle pt2-angle))
+          3 (* -1 (compare pt1-angle pt2-angle))
+          4 (* -1 (compare pt1-angle pt2-angle))))
       quad-compare)))
 
 (defn sort-asteroids
@@ -819,7 +819,7 @@
     (if (empty? asteroid-map)
       all-line-of-sight
       (let [line-of-sight (collect-line-of-sight origin asteroid-map)
-            sorted-line-of-sight (sort-asteroids line-of-sight origin)]        
+            sorted-line-of-sight (sort-asteroids line-of-sight origin)]
         (recur (conj all-line-of-sight sorted-line-of-sight)
                (apply dissoc asteroid-map line-of-sight))))))
 
@@ -890,7 +890,7 @@
 
 (defn paint-hull
   "Executes the intcode computer using the given program and input."
-  [prog-str input]  
+  [prog-str input]
   (loop [prog (indexed (vec (map #(str->bigint %) (str/split prog-str #","))))
          input input
          instr-ptr 0
@@ -905,13 +905,13 @@
          min-x 0
          max-x 0
          min-y 0
-         max-y 0]    
-    (if halted      
+         max-y 0]
+    (if halted
       [painted-hull min-x max-x min-y max-y]
       (let [[prog output-value paused halted instr-ptr relative-base] (intcode prog nil input instr-ptr output-value relative-base)]
         (if paused
-          (if (== 0 pause-count) 
-            (recur prog ; output-value is color to paint current panel                   
+          (if (== 0 pause-count)
+            (recur prog ; output-value is color to paint current panel
                    input
                    instr-ptr
                    output-value
@@ -928,9 +928,9 @@
                    max-y)
             (let [next-orientation (next-orientation orientation output-value) ; output-value is direction to turn
                   next-position (next-position next-orientation position)
-                  [next-pos-x next-pos-y] next-position] 
-              (recur prog 
-                     (hull-color painted-hull next-position)                   
+                  [next-pos-x next-pos-y] next-position]
+              (recur prog
+                     (hull-color painted-hull next-position)
                      instr-ptr
                      output-value
                      relative-base
@@ -938,13 +938,13 @@
                      halted
                      next-orientation
                      next-position
-                     painted-hull                   
+                     painted-hull
                      0
                      (if (< next-pos-x min-x) next-pos-x min-x)
                      (if (> next-pos-x max-x) next-pos-x max-x)
                      (if (< next-pos-y min-y) next-pos-y min-y)
-                     (if (> next-pos-y max-y) next-pos-y max-y))))        
-          (recur prog ; program is not paused            
+                     (if (> next-pos-y max-y) next-pos-y max-y))))
+          (recur prog ; program is not paused
                  (hull-color painted-hull position)
                  instr-ptr
                  output-value
@@ -962,17 +962,17 @@
 
 (defn run-solution-11-p1
   []
-  (let [[hull _ _ _ _] (paint-hull day-11-p1-input 0)]    
+  (let [[hull _ _ _ _] (paint-hull day-11-p1-input 0)]
     (count hull)))
 
 (defn run-solution-11-p2
   []
   (let [[hull min-x max-x min-y max-y] (paint-hull day-11-p1-input 1)
         x-range (range min-x (inc max-x))
-        y-range (reverse (range min-y (inc max-y)))]    
+        y-range (reverse (range min-y (inc max-y)))]
     (doseq [y y-range]
       (doseq [x x-range]
-        (let [hull-color (hull-color hull [x y])]          
+        (let [hull-color (hull-color hull [x y])]
           (print (if (== 0 hull-color) "." "#"))))
       (print "\n"))))
 
@@ -1055,10 +1055,10 @@
 
 (defn run-solution-12-p1
   []
-  (let [bodies (bodies (str->xyz-vectors day-12-input))]    
+  (let [bodies (bodies (str->xyz-vectors day-12-input))]
     (apply + (map :total-energy
                   (nth (iterate #(-> %
-                                     (apply-gravity-to-bodies)                                  
+                                     (apply-gravity-to-bodies)
                                      (apply-velocity-to-bodies)
                                      (apply-total-energy-to-bodies))
                                 bodies)
@@ -1066,7 +1066,7 @@
 
 (defn slot-values
   [bodies body-index slot-index]
-  (let [body (nth bodies body-index)]    
+  (let [body (nth bodies body-index)]
     [(get-in body [:position slot-index])
      (get-in body [:velocity slot-index])]))
 
@@ -1078,7 +1078,7 @@
   (let [[moon-0-initial-x-pos moon-0-initial-x-vel] (slot-values bodies 0 slot-index)
         [moon-1-initial-x-pos moon-1-initial-x-vel] (slot-values bodies 1 slot-index)
         [moon-2-initial-x-pos moon-2-initial-x-vel] (slot-values bodies 2 slot-index)
-        [moon-3-initial-x-pos moon-3-initial-x-vel] (slot-values bodies 3 slot-index)]    
+        [moon-3-initial-x-pos moon-3-initial-x-vel] (slot-values bodies 3 slot-index)]
     (loop [next-bodies (-> bodies
                            (apply-gravity-to-bodies)
                            (apply-velocity-to-bodies))
@@ -1086,7 +1086,7 @@
       (let [[moon-0-next-x-pos moon-0-next-x-vel] (slot-values next-bodies 0 slot-index)
             [moon-1-next-x-pos moon-1-next-x-vel] (slot-values next-bodies 1 slot-index)
             [moon-2-next-x-pos moon-2-next-x-vel] (slot-values next-bodies 2 slot-index)
-            [moon-3-next-x-pos moon-3-next-x-vel] (slot-values next-bodies 3 slot-index)]        
+            [moon-3-next-x-pos moon-3-next-x-vel] (slot-values next-bodies 3 slot-index)]
         (if (and (== moon-0-next-x-pos moon-0-initial-x-pos)
                  (== moon-0-next-x-vel moon-0-initial-x-vel)
                  (== moon-1-next-x-pos moon-1-initial-x-pos)
@@ -1131,8 +1131,8 @@
 
 (defn compute-tile-counts
   "Executes the intcode computer using the given program and outputs the number of various tile types encountered."
-  [prog-str]  
-  (loop [prog (indexed (vec (map #(str->bigint %) (str/split prog-str #","))))         
+  [prog-str]
+  (loop [prog (indexed (vec (map #(str->bigint %) (str/split prog-str #","))))
          instr-ptr 0
          output-value nil
          relative-base 0
@@ -1204,8 +1204,8 @@
 
 (defn play-arcade-game
   "Executes the intcode computer using the given program and plays the arcade game."
-  [prog-str]  
-  (loop [prog (assoc (indexed (vec (map #(str->bigint %) (str/split prog-str #",")))) 0 2) ; start w/2 quarters         
+  [prog-str]
+  (loop [prog (assoc (indexed (vec (map #(str->bigint %) (str/split prog-str #",")))) 0 2) ; start w/2 quarters
          i-ptr 0
          out-val nil
          rel-base 0
@@ -1218,7 +1218,7 @@
     (if halted
       game
       (let [[prog out-val paused halted i-ptr rel-base] (intcode prog nil input i-ptr out-val rel-base)]
-        (if paused          
+        (if paused
           (case pause-cnt
             0 (let [tile-key [out-val]]
                 (recur prog i-ptr out-val rel-base paused halted tile-key game input (inc pause-cnt)))
@@ -1232,24 +1232,24 @@
                   0 (recur prog i-ptr out-val rel-base paused halted nil
                            (update-in game [:blocks] #(dissoc % tile-key)) ; empty tile may overwrite a block
                            input
-                           0) 
+                           0)
                   1 (recur prog i-ptr out-val rel-base paused halted nil
                            (update-in game [:blocks] #(dissoc % tile-key)) ; wall tile may overwrite a block
                            input
-                           0) 
+                           0)
                   2 (recur prog i-ptr out-val rel-base paused halted nil
                            (assoc-in game [:blocks tile-key] :block)
                            input
                            0)
-                  3 (recur prog i-ptr out-val rel-base paused halted nil                           
+                  3 (recur prog i-ptr out-val rel-base paused halted nil
                            (assoc game :paddle-location tile-key)
                            input
-                           0)                  
+                           0)
                   4 (let [paddle-loc (:paddle-location game)]
                       (if (not (nil? paddle-loc))
                         (let [paddle-x (first paddle-loc)
                               ball-x (first tile-key)]
-                          (recur prog i-ptr out-val rel-base paused halted nil                                        
+                          (recur prog i-ptr out-val rel-base paused halted nil
                                  (-> game
                                      (assoc :ball-location tile-key)
                                      (update-in [:blocks] #(dissoc % tile-key)))
@@ -1262,7 +1262,7 @@
                         (recur prog i-ptr out-val rel-base paused halted nil
                                (-> game
                                    (assoc :ball-location tile-key)
-                                   (update-in [:blocks] #(dissoc % tile-key)))                                      
+                                   (update-in [:blocks] #(dissoc % tile-key)))
                                input
                                0))))))
           (recur prog i-ptr out-val rel-base paused halted tile-key game input pause-cnt))))))
@@ -1270,4 +1270,3 @@
 (defn run-solution-13-p2
   []
   (play-arcade-game day-13-input))
-
