@@ -1270,3 +1270,194 @@
 (defn run-solution-13-p2
   []
   (play-arcade-game day-13-input))
+
+(defn rx-str->map
+  "Takes string in the form: \"7 DCFZ, 4 PSHF => 2 XJWVT\"
+   and returns map of the form:
+   { \"XJWVT\" { :quantity 2
+                 :inputs [ { :symbol \"DCFZ\" :quantity 7 }
+                           { :symbol \"PSHF\" :quantity 4 } ] } }"
+  [chemical-rx-str]
+  (let [[lhs rhs] (str/split chemical-rx-str #"=>")
+        [rhs-qty-str rhs-sym-str] (str/split (str/trim rhs) #" ")
+        lhs-parts (str/split lhs #",")
+        chemical-rx (assoc {}
+                           rhs-sym-str
+                           (-> {}
+                               (assoc :quantity (Integer/parseInt rhs-qty-str))
+                               (assoc :inputs [])))]
+    (assoc-in chemical-rx
+              [rhs-sym-str :inputs]
+              (vec (map #(let [[lhs-qty-str lhs-sym-str] (str/split (str/trim %) #" ")]
+                           {:symbol lhs-sym-str
+                            :quantity (Integer/parseInt lhs-qty-str)})
+                        lhs-parts)))))
+
+(defn chemical-rxs-str->map
+  [chemical-rxs-str]
+  (reduce (fn [chemical-rxs-map chemical-rx-str]
+            (conj chemical-rxs-map (rx-str->map chemical-rx-str)))
+          {}
+          (line-seq (BufferedReader. (StringReader. chemical-rxs-str)))))
+
+(defn accum-ore-base
+  [rx needed]
+  (loop [ore 0 produced 0]
+    (if (>= produced needed)
+      ore
+      (let [ore-input (first (:inputs rx))]
+        (recur (+ ore (:quantity ore-input))
+               (+ produced (:quantity rx)))))))
+
+(defn ore-needed
+  [chemical-rxs sym needed]
+  (loop [base-inputs {}
+         syms-vec [sym]
+         needed-vec [needed]]
+    (if (empty? syms-vec)
+      (let [base-syms (keys base-inputs)]
+        (println base-inputs)
+        (reduce (fn [ore-accum sym]
+                  (+ ore-accum
+                     (accum-ore-base (get chemical-rxs sym) (get base-inputs sym))))
+                0
+                base-syms))
+      (let [sym (first syms-vec)
+            needed (first needed-vec)
+            rx (get chemical-rxs sym)
+            qty-produced (:quantity rx)
+            inputs (:inputs rx)]
+        (if (= (count inputs) 1)
+          (let [input (first inputs)]
+            (if (= (:symbol input) "ORE")
+              (recur (if (contains? base-inputs sym)
+                       (update base-inputs
+                               sym
+                               #(if (>= qty-produced needed)
+                                  (+ % 1)
+                                  (+ % (* qty-produced (int (Math/ceil (float (/ needed qty-produced)))))))
+                               #_#(+ % needed))
+                       (assoc base-inputs
+                              sym
+                              (if (>= qty-produced needed)
+                                1
+                                (* qty-produced (int (Math/ceil (float (/ needed qty-produced))))))
+                              #_needed))
+                     (vec (rest syms-vec))
+                     (vec (rest needed-vec)))
+              (recur base-inputs
+                     (conj (vec (rest syms-vec)) (:symbol input))
+                     (conj (vec (rest needed-vec)) (:quantity input)
+                           ))))
+          (recur base-inputs
+                 (apply conj (vec (rest syms-vec)) (vec (map #(:symbol %) inputs)))
+                 (apply conj (vec (rest syms-vec)) (vec (map #(:quantity %) inputs)))
+                 ))))))
+
+(defn ore-needed-2
+  [rxs sym needed]
+  (loop [syms [sym]
+         needed [needed]
+         base-sym-amounts {}]
+    (println syms ", " needed ", " base-sym-amounts)
+    (if (empty? syms)
+      (let [base-syms (keys base-sym-amounts)]
+        (reduce (fn [ore-accum sym]
+                  (let [rx (get rxs sym)
+                        ore (:quantity (first (:inputs rx)))
+                        sym-qty-produced (:quantity rx)
+                        needed (get base-sym-amounts sym)]
+                    (+ ore-accum
+                       (if (>= sym-qty-produced needed)
+                         ore
+                         (* ore (int (Math/ceil (float (/ needed sym-qty-produced)))))))))
+                0
+                base-syms))
+      (let [sym (first syms)
+            needed-val (first needed)
+            rx (get rxs sym)
+            inputs (:inputs rx)]
+        (if (and (= (count inputs) 1)
+                 (= (:symbol (first inputs)) "ORE"))
+          (recur (rest syms)
+                 (rest needed)
+                 (if (contains? base-sym-amounts sym)
+                   (update base-sym-amounts
+                           sym
+                           #(+ % needed-val))
+                   (assoc base-sym-amounts sym needed-val)))
+          (let [sym-qty-produced (:quantity rx)]
+            (recur (apply conj (rest syms) (map #(:symbol %) inputs))
+                   (apply conj
+                          (rest needed)
+                          (map (fn [input]
+                                 (if (>= sym-qty-produced needed-val)
+                                   (:quantity input)
+                                   (* (:quantity input) (int (Math/ceil (float (/ needed-val sym-qty-produced)))))))
+                               inputs))
+                   base-sym-amounts)))
+        ))
+    ))
+
+(def input-14-test-0
+  "10 ORE => 10 A
+1 ORE => 1 B
+7 A, 1 B => 1 C
+7 A, 1 C => 1 D
+7 A, 1 D => 1 E
+7 A, 1 E => 1 FUEL")
+
+(def input-14-test-1
+  "9 ORE => 2 A
+8 ORE => 3 B
+7 ORE => 5 C
+3 A, 4 B => 1 AB
+5 B, 7 C => 1 BC
+4 C, 1 A => 1 CA
+2 AB, 3 BC, 4 CA => 1 FUEL")
+
+(def input-14-test-2
+  "157 ORE => 5 NZVS
+165 ORE => 6 DCFZ
+44 XJWVT, 5 KHKGT, 1 QDVJ, 29 NZVS, 9 GPVTF, 48 HKGWZ => 1 FUEL
+12 HKGWZ, 1 GPVTF, 8 PSHF => 9 QDVJ
+179 ORE => 7 PSHF
+177 ORE => 5 HKGWZ
+7 DCFZ, 7 PSHF => 2 XJWVT
+165 ORE => 2 GPVTF
+3 DCFZ, 7 NZVS, 5 HKGWZ, 10 PSHF => 8 KHKGT")
+
+(def input-14-test-3
+  "2 VPVL, 7 FWMGM, 2 CXFTF, 11 MNCFX => 1 STKFG
+17 NVRVD, 3 JNWZP => 8 VPVL
+53 STKFG, 6 MNCFX, 46 VJHF, 81 HVMC, 68 CXFTF, 25 GNMV => 1 FUEL
+22 VJHF, 37 MNCFX => 5 FWMGM
+139 ORE => 4 NVRVD
+144 ORE => 7 JNWZP
+5 MNCFX, 7 RFSQX, 2 FWMGM, 2 VPVL, 19 CXFTF => 3 HVMC
+5 VJHF, 7 MNCFX, 9 VPVL, 37 CXFTF => 6 GNMV
+145 ORE => 6 MNCFX
+1 NVRVD => 8 CXFTF
+1 VJHF, 6 MNCFX => 4 RFSQX
+176 ORE => 6 VJHF")
+
+(def input-14-test-4
+  "171 ORE => 8 CNZTR
+7 ZLQW, 3 BMBT, 9 XCVML, 26 XMNCP, 1 WPTQ, 2 MZWV, 1 RJRHP => 4 PLWSL
+114 ORE => 4 BHXH
+14 VRPVC => 6 BMBT
+6 BHXH, 18 KTJDG, 12 WPTQ, 7 PLWSL, 31 FHTLT, 37 ZDVW => 1 FUEL
+6 WPTQ, 2 BMBT, 8 ZLQW, 18 KTJDG, 1 XMNCP, 6 MZWV, 1 RJRHP => 6 FHTLT
+15 XDBXC, 2 LTCX, 1 VRPVC => 6 ZLQW
+13 WPTQ, 10 LTCX, 3 RJRHP, 14 XMNCP, 2 MZWV, 1 ZLQW => 1 ZDVW
+5 BMBT => 4 WPTQ
+189 ORE => 9 KTJDG
+1 MZWV, 17 XDBXC, 3 XCVML => 2 XMNCP
+12 VRPVC, 27 CNZTR => 2 XDBXC
+15 KTJDG, 12 BHXH => 5 XCVML
+3 BHXH, 2 VRPVC => 7 MZWV
+121 ORE => 7 VRPVC
+7 XCVML => 6 RJRHP
+5 BHXH, 4 VRPVC => 5 LTCX")
+
+(def input-14 (slurp (resource "input_14.txt")))
