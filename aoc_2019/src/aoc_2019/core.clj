@@ -1300,66 +1300,11 @@
           {}
           (line-seq (BufferedReader. (StringReader. chemical-rxs-str)))))
 
-(defn accum-ore-base
-  [rx needed]
-  (loop [ore 0 produced 0]
-    (if (>= produced needed)
-      ore
-      (let [ore-input (first (:inputs rx))]
-        (recur (+ ore (:quantity ore-input))
-               (+ produced (:quantity rx)))))))
-
 (defn ore-needed
-  [chemical-rxs sym needed]
-  (loop [base-inputs {}
-         syms-vec [sym]
-         needed-vec [needed]]
-    (if (empty? syms-vec)
-      (let [base-syms (keys base-inputs)]
-        (println base-inputs)
-        (reduce (fn [ore-accum sym]
-                  (+ ore-accum
-                     (accum-ore-base (get chemical-rxs sym) (get base-inputs sym))))
-                0
-                base-syms))
-      (let [sym (first syms-vec)
-            needed (first needed-vec)
-            rx (get chemical-rxs sym)
-            qty-produced (:quantity rx)
-            inputs (:inputs rx)]
-        (if (= (count inputs) 1)
-          (let [input (first inputs)]
-            (if (= (:symbol input) "ORE")
-              (recur (if (contains? base-inputs sym)
-                       (update base-inputs
-                               sym
-                               #(if (>= qty-produced needed)
-                                  (+ % 1)
-                                  (+ % (* qty-produced (int (Math/ceil (float (/ needed qty-produced)))))))
-                               #_#(+ % needed))
-                       (assoc base-inputs
-                              sym
-                              (if (>= qty-produced needed)
-                                1
-                                (* qty-produced (int (Math/ceil (float (/ needed qty-produced))))))
-                              #_needed))
-                     (vec (rest syms-vec))
-                     (vec (rest needed-vec)))
-              (recur base-inputs
-                     (conj (vec (rest syms-vec)) (:symbol input))
-                     (conj (vec (rest needed-vec)) (:quantity input)
-                           ))))
-          (recur base-inputs
-                 (apply conj (vec (rest syms-vec)) (vec (map #(:symbol %) inputs)))
-                 (apply conj (vec (rest syms-vec)) (vec (map #(:quantity %) inputs)))
-                 ))))))
-
-(defn ore-needed-2
   [rxs sym needed]
-  (loop [syms [sym]
-         needed [needed]
-         base-sym-amounts {}]
-    (println syms ", " needed ", " base-sym-amounts)
+  (loop [syms [{:sym sym :needed needed}]
+         base-sym-amounts {}
+         leftovers {}]
     (if (empty? syms)
       (let [base-syms (keys base-sym-amounts)]
         (reduce (fn [ore-accum sym]
@@ -1373,31 +1318,34 @@
                          (* ore (int (Math/ceil (float (/ needed sym-qty-produced)))))))))
                 0
                 base-syms))
-      (let [sym (first syms)
-            needed-val (first needed)
+      (let [sym-map (first syms)
+            sym (:sym sym-map)
+            needed-val (:needed sym-map)
             rx (get rxs sym)
             inputs (:inputs rx)]
-        (if (and (= (count inputs) 1)
-                 (= (:symbol (first inputs)) "ORE"))
+        (if (and (= (count inputs) 1) (= (:symbol (first inputs)) "ORE"))
           (recur (rest syms)
-                 (rest needed)
                  (if (contains? base-sym-amounts sym)
-                   (update base-sym-amounts
-                           sym
-                           #(+ % needed-val))
-                   (assoc base-sym-amounts sym needed-val)))
-          (let [sym-qty-produced (:quantity rx)]
-            (recur (apply conj (rest syms) (map #(:symbol %) inputs))
-                   (apply conj
-                          (rest needed)
-                          (map (fn [input]
-                                 (if (>= sym-qty-produced needed-val)
-                                   (:quantity input)
-                                   (* (:quantity input) (int (Math/ceil (float (/ needed-val sym-qty-produced)))))))
-                               inputs))
-                   base-sym-amounts)))
-        ))
-    ))
+                   (update base-sym-amounts sym #(+ % needed-val))
+                   (assoc base-sym-amounts sym needed-val))
+                 leftovers)
+          (let [sym-qty-produced (:quantity rx)
+                leftover-val (get leftovers sym)
+                leftover-val (if (nil? leftover-val) 0 leftover-val)]
+            (if (>= needed-val leftover-val)
+              (let [needed-val (- needed-val leftover-val)
+                    rx-multiplier (if (>= sym-qty-produced needed-val) 1 (int (Math/ceil (float (/ needed-val sym-qty-produced)))))
+                    leftovers (assoc leftovers sym (- (* sym-qty-produced rx-multiplier) needed-val))]
+                (recur (apply conj
+                              (rest syms)
+                              (map (fn [input]
+                                     {:sym (:symbol input) :needed (* (:quantity input) rx-multiplier)})
+                                   inputs))
+                       base-sym-amounts
+                       leftovers))
+              (let [leftover-val (- leftover-val needed-val)
+                    leftovers (assoc leftovers sym leftover-val)]
+                (recur (rest syms) base-sym-amounts leftovers)))))))))
 
 (def input-14-test-0
   "10 ORE => 10 A
