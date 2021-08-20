@@ -1334,7 +1334,7 @@
                 leftover-val (if (nil? leftover-val) 0 leftover-val)]
             (if (>= needed-val leftover-val)
               (let [needed-val (- needed-val leftover-val)
-                    rx-multiplier (if (>= sym-qty-produced needed-val) 1 (long (Math/ceil (float (/ needed-val sym-qty-produced)))))
+                    rx-multiplier (if (>= sym-qty-produced needed-val) 1 (Math/ceil (float (/ needed-val sym-qty-produced))))
                     leftovers (assoc leftovers sym (- (* sym-qty-produced rx-multiplier) needed-val))]
                 (recur (apply conj
                               (rest syms)
@@ -1349,13 +1349,16 @@
 
 (def one-trillion-ore 1000000000000)
 
-(defn fuel-produced
-  [rxs ore]
-  (loop [fuel-produced 0
-         lower-bound 0
-         upper-bound Long/MAX_VALUE]
-    (let [ore-needed-lower (ore-needed rxs "FUEL" lower-bound)
-          ore-needed-upper (ore-needed rxs "FUEL" upper-bound)]
+(defn fuel-produced-trillion
+  [rxs]
+  (loop [lower-bound 3000000  ;requires 979,904,611,,968 ore (we can make more fuel)
+         upper-bound 3200000  ;requires 1,045,231,420,464 ore (we cannot make this much fuel)
+         mid (Math/floor (float (/ (+ upper-bound lower-bound) 2)))]
+    (if (= lower-bound upper-bound))
+    (let [
+
+          ore-needed (ore-needed rxs "FUEL" mid)
+          ]
       (if (< ore-needed-lower ore)
         )
       )
