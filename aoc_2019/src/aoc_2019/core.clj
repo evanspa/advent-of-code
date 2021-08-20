@@ -1315,7 +1315,7 @@
                     (+ ore-accum
                        (if (>= sym-qty-produced needed)
                          ore
-                         (* ore (int (Math/ceil (float (/ needed sym-qty-produced)))))))))
+                         (* ore (long (Math/ceil (float (/ needed sym-qty-produced)))))))))
                 0
                 base-syms))
       (let [sym-map (first syms)
@@ -1334,7 +1334,7 @@
                 leftover-val (if (nil? leftover-val) 0 leftover-val)]
             (if (>= needed-val leftover-val)
               (let [needed-val (- needed-val leftover-val)
-                    rx-multiplier (if (>= sym-qty-produced needed-val) 1 (int (Math/ceil (float (/ needed-val sym-qty-produced)))))
+                    rx-multiplier (if (>= sym-qty-produced needed-val) 1 (long (Math/ceil (float (/ needed-val sym-qty-produced)))))
                     leftovers (assoc leftovers sym (- (* sym-qty-produced rx-multiplier) needed-val))]
                 (recur (apply conj
                               (rest syms)
@@ -1346,6 +1346,20 @@
               (let [leftover-val (- leftover-val needed-val)
                     leftovers (assoc leftovers sym leftover-val)]
                 (recur (rest syms) base-sym-amounts leftovers)))))))))
+
+(def one-trillion-ore 1000000000000)
+
+(defn fuel-produced
+  [rxs ore]
+  (loop [fuel-produced 0
+         lower-bound 0
+         upper-bound Long/MAX_VALUE]
+    (let [ore-needed-lower (ore-needed rxs "FUEL" lower-bound)
+          ore-needed-upper (ore-needed rxs "FUEL" upper-bound)]
+      (if (< ore-needed-lower ore)
+        )
+      )
+    ))
 
 (def input-14-test-0
   "10 ORE => 10 A
