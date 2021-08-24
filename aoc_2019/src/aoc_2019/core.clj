@@ -1347,23 +1347,6 @@
                     leftovers (assoc leftovers sym leftover-val)]
                 (recur (rest syms) base-sym-amounts leftovers)))))))))
 
-(def one-trillion 1000000000000)
-
-(defn fuel-produced-trillion
-  [rxs]
-  (loop [lower-bound 3000000  ;requires 979,904,611,,968 ore (we can make more fuel)
-         upper-bound 3200000] ;requires 1,045,231,420,464 ore (we cannot make this much fuel)
-    (let [mid (long (Math/floor (float (/ (+ upper-bound lower-bound) 2))))]
-      (if (or (= mid upper-bound) (= mid lower-bound))
-        mid
-        (let [ore-needed-mid (ore-needed rxs "FUEL" mid)]
-          (if (> ore-needed-mid one-trillion)
-            (recur lower-bound mid)
-            (let [ore-needed-lower (ore-needed rxs "FUEL" lower-bound)]
-              (if (> ore-needed-mid ore-needed-lower)
-                (recur mid upper-bound)
-                (recur lower-bound mid)))))))))
-
 (def input-14-test-0
   "10 ORE => 10 A
 1 ORE => 1 B
@@ -1426,3 +1409,28 @@
 5 BHXH, 4 VRPVC => 5 LTCX")
 
 (def input-14 (slurp (resource "input_14.txt")))
+
+(defn run-solution-14-p1
+  []
+  (ore-needed (chemical-rxs-str->map input-14) "FUEL" 1))
+
+(def one-trillion 1000000000000)
+
+(defn fuel-produced-trillion
+  [rxs]
+  (loop [lower-bound 3000000  ;requires 979,904,611,,968 ore (we can make more fuel)
+         upper-bound 3200000] ;requires 1,045,231,420,464 ore (we cannot make this much fuel)
+    (let [mid (long (Math/floor (float (/ (+ upper-bound lower-bound) 2))))]
+      (if (or (= mid upper-bound) (= mid lower-bound))
+        mid
+        (let [ore-needed-mid (ore-needed rxs "FUEL" mid)]
+          (if (> ore-needed-mid one-trillion)
+            (recur lower-bound mid)
+            (let [ore-needed-lower (ore-needed rxs "FUEL" lower-bound)]
+              (if (> ore-needed-mid ore-needed-lower)
+                (recur mid upper-bound)
+                (recur lower-bound mid)))))))))
+
+(defn run-solution-14-p2
+  []
+  (fuel-produced-trillion (chemical-rxs-str->map input-14)))
