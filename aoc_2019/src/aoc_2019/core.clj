@@ -1434,3 +1434,68 @@
 (defn run-solution-14-p2
   []
   (fuel-produced-trillion (chemical-rxs-str->map input-14)))
+
+(defn repair-oxygen-system
+  "Executes the intcode computer using the given program to direct the droid to fix the oxygen system."
+  [prog-str]
+  (loop [prog (assoc (indexed (vec (map #(str->bigint %) (str/split prog-str #",")))) 0 2) ; start w/2 quarters
+         i-ptr 0
+         out-val nil
+         rel-base 0
+         paused false
+         halted false
+         tile-key nil
+         game {:ball-location nil :blocks {} :paddle-location nil :score nil}
+         input 0 ; start with joystick in neutral
+         pause-cnt 0]
+    (if halted
+      game
+      (let [[prog out-val paused halted i-ptr rel-base] (intcode prog nil input i-ptr out-val rel-base)]
+        (if paused
+          (case pause-cnt
+            0 (let [tile-key [out-val]]
+                (recur prog i-ptr out-val rel-base paused halted tile-key game input (inc pause-cnt)))
+            1 (let [tile-key (conj tile-key out-val)]
+                (recur prog i-ptr out-val rel-base paused halted tile-key game input (inc pause-cnt)))
+            2 (if (= tile-key [-1 0])
+                (do
+                  (println "New score: " out-val ", block count: " (count (:blocks game)))
+                  (recur prog i-ptr out-val rel-base paused halted nil (assoc game :score out-val) input 0))
+                (case out-val
+                  0 (recur prog i-ptr out-val rel-base paused halted nil
+                           (update-in game [:blocks] #(dissoc % tile-key)) ; empty tile may overwrite a block
+                           input
+                           0)
+                  1 (recur prog i-ptr out-val rel-base paused halted nil
+                           (update-in game [:blocks] #(dissoc % tile-key)) ; wall tile may overwrite a block
+                           input
+                           0)
+                  2 (recur prog i-ptr out-val rel-base paused halted nil
+                           (assoc-in game [:blocks tile-key] :block)
+                           input
+                           0)
+                  3 (recur prog i-ptr out-val rel-base paused halted nil
+                           (assoc game :paddle-location tile-key)
+                           input
+                           0)
+                  4 (let [paddle-loc (:paddle-location game)]
+                      (if (not (nil? paddle-loc))
+                        (let [paddle-x (first paddle-loc)
+                              ball-x (first tile-key)]
+                          (recur prog i-ptr out-val rel-base paused halted nil
+                                 (-> game
+                                     (assoc :ball-location tile-key)
+                                     (update-in [:blocks] #(dissoc % tile-key)))
+                                 (if (> ball-x paddle-x)
+                                   1
+                                   (if (< ball-x paddle-x)
+                                     -1
+                                     0))
+                                 0))
+                        (recur prog i-ptr out-val rel-base paused halted nil
+                               (-> game
+                                   (assoc :ball-location tile-key)
+                                   (update-in [:blocks] #(dissoc % tile-key)))
+                               input
+                               0))))))
+          (recur prog i-ptr out-val rel-base paused halted tile-key game input pause-cnt))))))
