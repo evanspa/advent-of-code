@@ -1441,28 +1441,52 @@
 
 (def input-15 (str/trim (slurp (resource "input_15.txt"))))
 
-(defn neighbors
-  [current-location]
-  (let [[x y] current-location]
-    [[x (inc y)] ; north neighbor
-     [x (dec y)] ; south neighbor
-     [(inc x) y] ; east neighbor
-     [(dec x) y]])) ; west neighbor
+(def moves {:N {:value 1 :inverse :S :next-moves [:N :W :E]}
+            :S {:value 2 :inverse :N :next-moves [:S :W :E]}
+            :W {:value 3 :inverse :E :next-moves [:W :N :S]}
+            :E {:value 4 :inverse :W :next-moves [:E :N :S]}})
+
+(defn next-move
+  [from]
+  {:avail-moves (get-in moves [from :next-moves])})
+
+(defn next-maze-state-wall-hit
+  [from maze-state]
+  )
+
+(defn next-maze-state-move-success
+  [from maze-state]
+  (let [moves-stack (:moves-stack maze-state)
+        idx (dec (count moves-stack))
+        popped-avail-moves (pop (:avail-moves (nth moves-stack idx)))
+        next-maze-state (assoc-in maze-state [:moves-stack idx :avail-moves] popped-avail-moves)]
+    (assoc next-maze-state :moves-stack (conj (:moves-stack next-maze-state) (next-move from)))))
 
 (defn repair-oxygen-system
   "Executes the intcode computer using the given program to direct the droid to fix the oxygen system."
   [prog-str]
   (loop [prog (vec (map #(Integer/parseInt %) (str/split prog-str #",")))
-         out-val nil
-         state {:walls #{}
-                :visited #{}
-                :queue #{[0 0]}}
-         input 1] ; start with trying to go North (1=North, 2=South, 3=West, 4=East)
-    (if (> (count queue) 0)
-      (let [[prog out-val _ _ _ _] (intcode prog nil input 0 out-val 0)]
-        (case out-val
-          0 () ; wall hit; position unchanged
-          1 () ; droid moved 1 step in requested direction
-          2 ()) ; oxygen system found
-        )
-      state)))
+         i-ptr 0
+         rel-base 0
+         maze-state {:done false
+                     :walls #{}
+                     :visited #{}
+                     :moves-stack [{:avail-moves [:N :S :W :E]}]}]
+    (let [moves-stack (:moves-stack maze-state)
+          next (:peek moves-stack)]
+      (if (== (count (:avail-moves next)) 0)
+        (recur prog i-ptr rel-base (assoc maze-state :moves-stack (pop moves-stack)))
+        (let [dir-sym (peek (:avail-moves next))
+              input-val (-> moves dir-sym :value)
+              [prog output _ _ i-ptr rel-base] (intcode prog nil input-val i-ptr nil rel-base)]
+          (case output
+            ;; wall hit; position unchanged
+            0 (recur prog i-ptr rel-base )
+
+            ;; droid moved 1 step in requested direction
+            1 ()
+
+            ;; oxygen system found
+            2 (recur prog i-ptr rel-base (assoc maze-state :done true)))
+          ))
+      )))
