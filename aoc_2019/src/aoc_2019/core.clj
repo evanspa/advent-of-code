@@ -1439,41 +1439,30 @@
   ([] clojure.lang.PersistentQueue/EMPTY)
   ([coll] (reduce conj clojure.lang.PersistentQueue/EMPTY coll)))
 
-(defn new-location
-  [current-location direction output]
-  (let [[x y] current-location]
-    (case output
-      0 current-location ; we hit a wall
-      (case direction    ; output is 1 or 2 (movement was successful)
-        1 [x (inc y)]  ; north
-        2 [x (dec y)]  ; south
-        3 [(dec x) y]  ; west
-        4 [(inc x) y]) ; east
-      )))
-
 (def input-15 (str/trim (slurp (resource "input_15.txt"))))
+
+(defn neighbors
+  [current-location]
+  (let [[x y] current-location]
+    [[x (inc y)] ; north neighbor
+     [x (dec y)] ; south neighbor
+     [(inc x) y] ; east neighbor
+     [(dec x) y]])) ; west neighbor
 
 (defn repair-oxygen-system
   "Executes the intcode computer using the given program to direct the droid to fix the oxygen system."
   [prog-str]
   (loop [prog (vec (map #(Integer/parseInt %) (str/split prog-str #",")))
-         i-ptr 0
          out-val nil
-         rel-base 0
-         paused false
-         halted false
          state {:walls #{}
                 :visited #{}
-                :current-location [0 0]
-                :queue #{[0 1] [1 0] [0 -1] [-1 0]}}
+                :queue #{[0 0]}}
          input 1] ; start with trying to go North (1=North, 2=South, 3=West, 4=East)
-    (if halted
-      state
-      (let [[prog out-val paused halted i-ptr rel-base] (intcode prog nil input i-ptr out-val rel-base)]
-        out-val
-        #_(if paused
-          (case out-val
-            0 ()           ; wall hit; position unchanged
-            1 ()           ; droid moved 1 step in requested direction
-            2 ()           ; same as 1 and oxygen system found!
-            ))))))
+    (if (> (count queue) 0)
+      (let [[prog out-val _ _ _ _] (intcode prog nil input 0 out-val 0)]
+        (case out-val
+          0 () ; wall hit; position unchanged
+          1 () ; droid moved 1 step in requested direction
+          2 ()) ; oxygen system found
+        )
+      state)))
