@@ -1451,15 +1451,18 @@
   {:avail-moves (get-in moves [from :next-moves])})
 
 (defn next-maze-state-wall-hit
-  [from maze-state]
-  )
+  [maze-state]
+  (let  [moves-stack (:moves-stack maze-state)
+         idx (dec (count moves-stack))
+         popped-avail-moves (pop (:avail-moves (nth moves-stack idx)))]
+    (assoc-in maze-state [:moves-stack idx :avail-moves] popped-avail-moves)))
 
 (defn next-maze-state-move-success
   [from maze-state]
-  (let [moves-stack (:moves-stack maze-state)
-        idx (dec (count moves-stack))
-        popped-avail-moves (pop (:avail-moves (nth moves-stack idx)))
-        next-maze-state (assoc-in maze-state [:moves-stack idx :avail-moves] popped-avail-moves)]
+  (let  [moves-stack (:moves-stack maze-state)
+         idx (dec (count moves-stack))
+         popped-avail-moves (pop (:avail-moves (nth moves-stack idx)))
+         next-maze-state (assoc-in maze-state [:moves-stack idx :avail-moves] popped-avail-moves)]
     (assoc next-maze-state :moves-stack (conj (:moves-stack next-maze-state) (next-move from)))))
 
 (defn repair-oxygen-system
@@ -1473,20 +1476,21 @@
                      :visited #{}
                      :moves-stack [{:avail-moves [:N :S :W :E]}]}]
     (let [moves-stack (:moves-stack maze-state)
-          next (:peek moves-stack)]
+          next (peek moves-stack)]
+      (println moves-stack)
       (if (== (count (:avail-moves next)) 0)
         (recur prog i-ptr rel-base (assoc maze-state :moves-stack (pop moves-stack)))
-        (let [dir-sym (peek (:avail-moves next))
-              input-val (-> moves dir-sym :value)
+        (let [direction-sym (peek (:avail-moves next))
+              input-val (-> moves direction-sym :value)
               [prog output _ _ i-ptr rel-base] (intcode prog nil input-val i-ptr nil rel-base)]
           (case output
-            ;; wall hit; position unchanged
-            0 (recur prog i-ptr rel-base )
+            ;; wall hit, position unchanged
+            0 (recur prog i-ptr rel-base (next-maze-state-wall-hit maze-state))
 
             ;; droid moved 1 step in requested direction
-            1 ()
+            1 (recur prog i-ptr rel-base (next-maze-state-move-success direction-sym maze-state))
 
             ;; oxygen system found
-            2 (recur prog i-ptr rel-base (assoc maze-state :done true)))
+            2 maze-state #_(recur prog i-ptr rel-base (assoc maze-state :done true)))
           ))
       )))
