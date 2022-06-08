@@ -1450,47 +1450,80 @@
   [from]
   {:avail-moves (get-in moves [from :next-moves])})
 
+(defn next-loc
+  [loc dir-sym]
+  (let [[x y] loc]
+    (case dir-sym
+      :N [x (inc y)]
+      :S [x (dec y)]
+      :E [(inc x) y]
+      :W [(dec x) y])))
+
 (defn next-maze-state-wall-hit
-  [maze-state]
+  [attempted-dir-sym maze-state]
   (let  [moves-stack (:moves-stack maze-state)
+         loc (:loc maze-state)
          idx (dec (count moves-stack))
+         walls (:walls maze-state)
          popped-avail-moves (pop (:avail-moves (nth moves-stack idx)))]
-    (assoc-in maze-state [:moves-stack idx :avail-moves] popped-avail-moves)))
+    (-> maze-state
+        (assoc :walls (conj walls (next-loc loc attempted-dir-sym)))
+        (assoc-in [:moves-stack idx :avail-moves] popped-avail-moves))))
 
 (defn next-maze-state-move-success
-  [from maze-state]
+  [dir-sym maze-state]
   (let  [moves-stack (:moves-stack maze-state)
+         loc (:loc maze-state)
+         visited (:visited maze-state)
          idx (dec (count moves-stack))
          popped-avail-moves (pop (:avail-moves (nth moves-stack idx)))
          next-maze-state (assoc-in maze-state [:moves-stack idx :avail-moves] popped-avail-moves)]
-    (assoc next-maze-state :moves-stack (conj (:moves-stack next-maze-state) (next-move from)))))
+    (-> next-maze-state
+        (assoc :moves-stack (conj (:moves-stack next-maze-state) (next-move dir-sym)))
+        (assoc :visited (conj visited loc))
+        (assoc :loc (next-loc loc dir-sym)))))
 
 (defn repair-oxygen-system
   "Executes the intcode computer using the given program to direct the droid to fix the oxygen system."
-  [prog-str]
+  [prog-str cnt]
   (loop [prog (vec (map #(Integer/parseInt %) (str/split prog-str #",")))
          i-ptr 0
          rel-base 0
-         maze-state {:done false
+         maze-state {#_:done #_false
                      :walls #{}
                      :visited #{}
-                     :moves-stack [{:avail-moves [:N :S :W :E]}]}]
-    (let [moves-stack (:moves-stack maze-state)
-          next (peek moves-stack)]
-      (println moves-stack)
-      (if (== (count (:avail-moves next)) 0)
-        (recur prog i-ptr rel-base (assoc maze-state :moves-stack (pop moves-stack)))
-        (let [direction-sym (peek (:avail-moves next))
-              input-val (-> moves direction-sym :value)
-              [prog output _ _ i-ptr rel-base] (intcode prog nil input-val i-ptr nil rel-base)]
-          (case output
-            ;; wall hit, position unchanged
-            0 (recur prog i-ptr rel-base (next-maze-state-wall-hit maze-state))
+                     :loc [0 0]
+                     :moves-stack [{:avail-moves [:N :S :W :E]}]}
+         i 0]
+    (when (< i cnt)
+      (let [moves-stack (:moves-stack maze-state)
+            next-move-set (peek moves-stack)]
+        (if (== (count (:avail-moves next-move-set)) 0)
+          (recur prog i-ptr rel-base (assoc maze-state :moves-stack (pop moves-stack)) (inc i))
+          (let [dir-sym (peek (:avail-moves next-move-set))
+                loc (:loc maze-state)
+                walls (:walls maze-state)
+                visited (:visited maze-state)
+                potential-next-loc (next-loc loc dir-sym)
+                input-val (-> moves dir-sym :value)]
+            (if (or (contains? walls potential-next-loc)
+                    (contains? visited potential-next-loc))
+              (let [popped-avail-moves (when (>= (count (:avail-moves next-move-set)) 0) (pop (:avail-moves next-move-set)))
+                    idx (dec (count moves-stack))]
+                (recur prog
+                       i-ptr
+                       rel-base
+                       (-> maze-state
+                           (assoc-in [:moves-stack idx :avail-moves] popped-avail-moves))
+                       (inc i)))
+              (let [[prog output _ _ i-ptr rel-base] (intcode prog nil input-val i-ptr nil rel-base)]
+                ;(println "input:" dir-sym ", output:" output ", maze state:" maze-state)
+                (case output
+                  ;; wall hit, position unchanged
+                  0 (recur prog i-ptr rel-base (next-maze-state-wall-hit dir-sym maze-state) (inc i))
 
-            ;; droid moved 1 step in requested direction
-            1 (recur prog i-ptr rel-base (next-maze-state-move-success direction-sym maze-state))
+                  ;; droid moved 1 step in requested direction
+                  1 (recur prog i-ptr rel-base (next-maze-state-move-success dir-sym maze-state) (inc i))
 
-            ;; oxygen system found
-            2 maze-state #_(recur prog i-ptr rel-base (assoc maze-state :done true)))
-          ))
-      )))
+                  ;; oxygen system found
+                  2 maze-state #_(recur prog i-ptr rel-base (assoc maze-state :done true)))))))))))
