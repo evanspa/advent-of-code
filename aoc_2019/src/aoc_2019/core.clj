@@ -1441,14 +1441,14 @@
 
 (def input-15 (str/trim (slurp (resource "input_15.txt"))))
 
-(def moves {:N {:value 1 :inverse :S :next-moves [:N :W :E]}
+(def MOVES {:N {:value 1 :inverse :S :next-moves [:N :W :E]}
             :S {:value 2 :inverse :N :next-moves [:S :W :E]}
             :W {:value 3 :inverse :E :next-moves [:W :N :S]}
             :E {:value 4 :inverse :W :next-moves [:E :N :S]}})
 
 (defn next-move
   [from]
-  {:avail-moves (get-in moves [from :next-moves])})
+  {:avail-moves (get-in MOVES [from :next-moves])})
 
 (defn next-loc
   [loc dir-sym]
@@ -1458,6 +1458,40 @@
       :S [x (dec y)]
       :E [(inc x) y]
       :W [(dec x) y])))
+
+(defn explore-maze
+  [prog]
+  (loop [i-ptr 0
+         rel-base 0
+         walls #{}
+         visited #{}
+         loc [0, 0]
+         path [[:N :S :E :W]]]
+    (let [head (peek path)]
+      (if (== (count head) 0)
+        (recur i-ptr rel-base walls visited loc (pop path))
+        (let [move-dir-sym (peek head)
+              move-dir-input-val (get-in MOVES [move-dir-sym :value])
+              [prog output _ _ i-ptr rel-base] (intcode prog nil move-dir-input-val i-ptr nil rel-base)]
+          (case output
+            ;; wall hit, position unchanged
+            0 (recur i-ptr
+                     rel-base
+                     (conj walls (next-loc loc move-dir-sym))
+                     visited
+                     loc
+                     (-> path
+                         (pop)
+                         (conj (pop head))))
+
+            ;; droid moved 1 step in requested direction
+            1
+
+            ;; oxygen system found
+            2 )
+          )))
+    )
+  )
 
 (defn next-maze-state-wall-hit
   [attempted-dir-sym maze-state]
