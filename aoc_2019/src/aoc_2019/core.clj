@@ -1439,7 +1439,9 @@
   ([] clojure.lang.PersistentQueue/EMPTY)
   ([coll] (reduce conj clojure.lang.PersistentQueue/EMPTY coll)))
 
-(def input-15 (str/trim (slurp (resource "input_15.txt"))))
+(def input-15-str (str/trim (slurp (resource "input_15.txt"))))
+
+(def input-15 (vec (map #(Integer/parseInt %) (str/split input-15-str #","))))
 
 (def MOVES {:N {:value 1 :inverse :S :next-moves [:N :W :E]}
             :S {:value 2 :inverse :N :next-moves [:S :W :E]}
@@ -1460,38 +1462,80 @@
       :W [(dec x) y])))
 
 (defn explore-maze
-  [prog]
-  (loop [i-ptr 0
+  [prog limit]
+  (loop [prog prog
+         i-ptr 0
          rel-base 0
          walls #{}
          visited #{}
-         loc [0, 0]
-         path [[:N :S :E :W]]]
-    (let [head (peek path)]
-      (if (== (count head) 0)
-        (recur i-ptr rel-base walls visited loc (pop path))
-        (let [move-dir-sym (peek head)
-              move-dir-input-val (get-in MOVES [move-dir-sym :value])
-              [prog output _ _ i-ptr rel-base] (intcode prog nil move-dir-input-val i-ptr nil rel-base)]
-          (case output
-            ;; wall hit, position unchanged
-            0 (recur i-ptr
+         path [{:loc [0 0] :choices [:N :S :E :W] :from-dir nil}]
+         o2-loc nil
+         cnt 0]
+    (if (or (>= cnt limit)
+            (== (count path) 0)
+            (not (nil? o2-loc)))
+      #_{:o2-loc o2-loc :visited visited :walls walls :path path :cnt cnt}
+      {:o2-loc o2-loc :cnt cnt}
+      (let [head (peek path)
+            head-idx (dec (count path))
+            choices (:choices head)
+            loc (:loc head)]
+        (if (== (count choices) 0)
+          (let [backtrack-dir-sym (:from-dir head)
+                backtrack-dir-input-val (get-in MOVES [backtrack-dir-sym :value])
+                [prog _ _ _ i-ptr rel-base] (intcode prog nil backtrack-dir-input-val i-ptr nil rel-base)]
+            #_(println "backtracking (count:" cnt ")")
+            (recur prog
+                   i-ptr
+                   rel-base
+                   walls
+                   visited
+                   (pop path)
+                   o2-loc
+                   (inc cnt)))
+          (let [move-dir-sym (peek choices)
+                move-dir-input-val (get-in MOVES [move-dir-sym :value])
+                next-loc (next-loc loc move-dir-sym)]
+            (if (or (contains? walls next-loc)
+                    (contains? visited next-loc))
+              (recur prog
+                     i-ptr
                      rel-base
-                     (conj walls (next-loc loc move-dir-sym))
+                     walls
                      visited
-                     loc
                      (-> path
-                         (pop)
-                         (conj (pop head))))
+                         (assoc-in [head-idx :choices] (pop choices)))
+                     o2-loc
+                     (inc cnt))
+              (let [[prog output _ _ i-ptr rel-base] (intcode prog nil move-dir-input-val i-ptr nil rel-base)]
+                (case output
+                  ;; wall hit, position unchanged
+                  0 (recur prog
+                           i-ptr
+                           rel-base
+                           (conj walls next-loc)
+                           visited
+                           (-> path
+                               (assoc-in [head-idx :choices] (pop choices)))
+                           o2-loc
+                           (inc cnt))
 
-            ;; droid moved 1 step in requested direction
-            1
+                  ;; droid moved 1 step in requested direction
+                  1 (recur prog
+                           i-ptr
+                           rel-base
+                           walls
+                           (conj visited next-loc)
+                           (-> path
+                               (assoc-in [head-idx :choices] (pop choices))
+                               (conj {:choices (get-in MOVES [move-dir-sym :next-moves])
+                                      :loc next-loc
+                                      :from-dir move-dir-sym}))
+                           o2-loc
+                           (inc cnt))
 
-            ;; oxygen system found
-            2 )
-          )))
-    )
-  )
+                  ;; oxygen system found
+                  2 next-loc)))))))))
 
 (defn next-maze-state-wall-hit
   [attempted-dir-sym maze-state]
@@ -1539,7 +1583,7 @@
                 walls (:walls maze-state)
                 visited (:visited maze-state)
                 potential-next-loc (next-loc loc dir-sym)
-                input-val (-> moves dir-sym :value)]
+                input-val (-> MOVES dir-sym :value)]
             (if (or (contains? walls potential-next-loc)
                     (contains? visited potential-next-loc))
               (let [popped-avail-moves (when (>= (count (:avail-moves next-move-set)) 0) (pop (:avail-moves next-move-set)))
