@@ -1461,7 +1461,53 @@
       :E [(inc x) y]
       :W [(dec x) y])))
 
-(defn explore-maze
+(defn explore-maze-bfs
+  [prog limit]
+  (loop [walls #{}
+         visited #{}
+         paths (queue {:intcode {:prog prog :i-ptr i-ptr :rel-base rel-base}
+                       :to-dir :N
+                       :loc [0 0]})
+         o2-loc nil
+         cnt 0]
+    (if (or (>= cnt limit)
+            (== (count paths) 0)
+            (not (nil? o2-loc)))
+      {:o2-loc o2-loc :visited visited :walls walls :paths paths :cnt cnt}
+      (let [path (peek paths)
+            loc (:loc path)
+            dir-sym (:to-dir path)
+            dir-input-val (get-in MOVES [dir-sym :value])
+            next-loc (next-loc loc dir-sym)
+            [nxt-prog output _ _ nxt-i-ptr nxt-rel-base] (intcode (:prog (:intcode path))
+                                                                  nil
+                                                                  dir-input-val
+                                                                  (:i-ptr (:intcode path))
+                                                                  nil
+                                                                  (:rel-base (:intcode path)))]
+        (case output
+                  ;; wall hit, position unchanged
+                  0 (recur (conj walls next-loc)
+                           visited
+                           (pop paths)
+                           o2-loc
+                           (inc cnt))
+
+                  ;; droid moved 1 step in requested direction
+                  1 (let []
+                      (recur walls
+                             (conj visited next-loc)
+                             (-> paths
+                                 (pop)
+                                 (conj {:intcode {:prog nxt-prog :i-ptr nxt-i-ptr :rel-base nxt-rel-base}
+                                        :to-dir
+                                        :loc next-loc}))))
+
+                  ;; oxygen system found
+                  2 )
+        ))))
+
+(defn explore-maze-dfs
   [prog limit]
   (loop [prog prog
          i-ptr 0
