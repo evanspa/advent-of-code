@@ -1461,217 +1461,134 @@
       :E [(inc x) y]
       :W [(dec x) y])))
 
-(defn explore-maze-bfs
+(defn explore-maze-bfs-find-o2
   [prog limit]
   (loop [walls #{}
          visited #{}
          paths (queue [{:intcode {:prog prog :i-ptr 0 :rel-base 0}
                         :to-dir :N
-                        :loc [0 0]}
+                        :loc [0 0]
+                        :steps 0}
                        {:intcode {:prog prog :i-ptr 0 :rel-base 0}
                         :to-dir :S
-                        :loc [0 0]}
+                        :loc [0 0]
+                        :steps 0}
                        {:intcode {:prog prog :i-ptr 0 :rel-base 0}
                         :to-dir :E
-                        :loc [0 0]}
+                        :loc [0 0]
+                        :steps 0}
                        {:intcode {:prog prog :i-ptr 0 :rel-base 0}
                         :to-dir :W
-                        :loc [0 0]}])
+                        :loc [0 0]
+                        :steps 0}])
          o2-loc nil
+         step-count nil
          cnt 0]
     (if (not (nil? o2-loc))
-      (println "Found it! " o2-loc)
-      (if (or (>= cnt limit)
-              (== (count paths) 0))
+      {:o2-loc o2-loc
+       :walls walls
+       :visited visited
+       :paths paths
+       :step-count step-count
+       :cnt cnt}
+      (if (or (>= cnt limit) (== (count paths) 0))
         {:o2-loc o2-loc
          :visited visited
          :walls walls
          :paths (queue (map #(assoc-in % [:intcode :prog] nil) paths))
          :cnt cnt}
         (let [path (peek paths)
-              #_ (println "path: " path)
               loc (:loc path)
               dir-sym (:to-dir path)
-              dir-input-val (get-in MOVES [dir-sym :value])
-              #_ (println "loc: " loc ", dir-sym: " dir-sym)
-              next-loc (next-loc loc dir-sym)
-              [nxt-prog output _ _ nxt-i-ptr nxt-rel-base] (intcode (:prog (:intcode path))
-                                                                    nil
-                                                                    dir-input-val
-                                                                    (:i-ptr (:intcode path))
-                                                                    nil
-                                                                    (:rel-base (:intcode path)))]
-          (case output
-            ;; wall hit, position unchanged
-            0 (recur (conj walls next-loc)
-                     visited
-                     (pop paths)
-                     o2-loc
-                     (inc cnt))
+              next-loc (next-loc loc dir-sym)]
+          (if (or (contains? walls next-loc) (contains? visited next-loc))
+            (recur walls visited (pop paths) nil nil (inc cnt))
+            (let [steps (:steps path)
+                  dir-input-val (get-in MOVES [dir-sym :value])
+                  [nxt-prog output _ _ nxt-i-ptr nxt-rel-base] (intcode (:prog (:intcode path))
+                                                                        nil
+                                                                        dir-input-val
+                                                                        (:i-ptr (:intcode path))
+                                                                        nil
+                                                                        (:rel-base (:intcode path)))]
+              (case output
+                ;; wall hit, position unchanged
+                0 (recur (conj walls next-loc) visited (pop paths) nil nil (inc cnt))
 
-            ;; droid moved 1 step in requested direction
-            1 (recur walls
-                     (conj visited next-loc)
-                     (reduce (fn [next-paths nxt-mv] (conj next-paths
-                                                           {:intcode {:prog nxt-prog
-                                                                      :i-ptr nxt-i-ptr
-                                                                      :rel-base nxt-rel-base}
-                                                            :to-dir nxt-mv
-                                                            :loc next-loc}))
-                             (pop paths)
-                             (get-in MOVES [dir-sym :next-moves]))
-                     o2-loc
-                     (inc cnt))
+                ;; droid moved 1 step in requested direction
+                1 (recur walls
+                         (conj visited next-loc)
+                         (reduce (fn [next-paths nxt-mv] (conj next-paths
+                                                               {:intcode {:prog nxt-prog
+                                                                          :i-ptr nxt-i-ptr
+                                                                          :rel-base nxt-rel-base}
+                                                                :to-dir nxt-mv
+                                                                :steps (inc steps)
+                                                                :loc next-loc}))
+                                 (pop paths)
+                                 (get-in MOVES [dir-sym :next-moves]))
+                         nil
+                         nil
+                         (inc cnt))
 
-            ;; oxygen system found
-            2 (recur walls
-                     (conj visited next-loc)
-                     {}
-                     next-loc
-                     (inc cnt)))
-          )))))
+                ;; oxygen system found
+                2 (recur walls (conj visited next-loc) (pop paths) next-loc (inc steps) (inc cnt))))))))))
 
-(defn explore-maze-dfs
-  [prog limit]
-  (loop [prog prog
-         i-ptr 0
-         rel-base 0
-         walls #{}
-         visited #{}
-         path [{:loc [0 0] :choices [:N :S :E :W] :from-dir nil}]
-         o2-loc nil
-         cnt 0]
-    (if (or (>= cnt limit)
-            (== (count path) 0)
-            (not (nil? o2-loc)))
-      #_{:o2-loc o2-loc :visited visited :walls walls :path path :cnt cnt}
-      {:o2-loc o2-loc :cnt cnt}
-      (let [head (peek path)
-            head-idx (dec (count path))
-            choices (:choices head)
-            loc (:loc head)]
-        (if (== (count choices) 0)
-          (let [backtrack-dir-sym (:from-dir head)
-                backtrack-dir-input-val (get-in MOVES [backtrack-dir-sym :value])
-                [prog _ _ _ i-ptr rel-base] (intcode prog nil backtrack-dir-input-val i-ptr nil rel-base)]
-            #_(println "backtracking (count:" cnt ")")
-            (recur prog
-                   i-ptr
-                   rel-base
-                   walls
-                   visited
-                   (pop path)
-                   o2-loc
-                   (inc cnt)))
-          (let [move-dir-sym (peek choices)
-                move-dir-input-val (get-in MOVES [move-dir-sym :value])
-                next-loc (next-loc loc move-dir-sym)]
-            (if (or (contains? walls next-loc)
-                    (contains? visited next-loc))
-              (recur prog
-                     i-ptr
-                     rel-base
-                     walls
-                     visited
-                     (-> path
-                         (assoc-in [head-idx :choices] (pop choices)))
-                     o2-loc
-                     (inc cnt))
-              (let [[prog output _ _ i-ptr rel-base] (intcode prog nil move-dir-input-val i-ptr nil rel-base)]
+(defn run-solution-15-p1
+  []
+  (let [{o2-loc :o2-loc
+         walls :walls
+         visited :visited
+         paths :paths
+         step-count :step-count
+         cnt :cnt} (explore-maze-bfs-find-o2 input-15 10000)]
+    {:o2-loc o2-loc :step-count step-count}))
+
+(defn run-solution-15-p2
+  [limit]
+  (let [{o2-loc :o2-loc
+         walls :walls
+         visited :visited
+         paths :paths
+         step-count :step-count
+         cnt :cnt} (explore-maze-bfs-find-o2 input-15 limit)]
+    (println "cnt: " cnt ", o2-loc: " o2-loc)
+    (loop [walls walls
+           visited visited
+           paths paths
+           cnt cnt]
+      (if (>= cnt limit)
+        {:visited visited :cnt cnt}
+        (if (empty? paths)
+          (println "done exploring! count: " cnt)
+          (let [path (peek paths)
+                loc (:loc path)
+                dir-sym (:to-dir path)
+                next-loc (next-loc loc dir-sym)]
+            (if (or (contains? walls next-loc) (contains? visited next-loc))
+              (recur walls visited (pop paths) (inc cnt))
+              (let [steps (:steps path)
+                    dir-input-val (get-in MOVES [dir-sym :value])
+                    [nxt-prog output _ _ nxt-i-ptr nxt-rel-base] (intcode (:prog (:intcode path))
+                                                                          nil
+                                                                          dir-input-val
+                                                                          (:i-ptr (:intcode path))
+                                                                          nil
+                                                                          (:rel-base (:intcode path)))]
                 (case output
                   ;; wall hit, position unchanged
-                  0 (recur prog
-                           i-ptr
-                           rel-base
-                           (conj walls next-loc)
-                           visited
-                           (-> path
-                               (assoc-in [head-idx :choices] (pop choices)))
-                           o2-loc
-                           (inc cnt))
+                  0 (recur (conj walls next-loc) visited (pop paths) (inc cnt))
 
                   ;; droid moved 1 step in requested direction
-                  1 (recur prog
-                           i-ptr
-                           rel-base
-                           walls
+                  1 (recur walls
                            (conj visited next-loc)
-                           (-> path
-                               (assoc-in [head-idx :choices] (pop choices))
-                               (conj {:choices (get-in MOVES [move-dir-sym :next-moves])
-                                      :loc next-loc
-                                      :from-dir move-dir-sym}))
-                           o2-loc
-                           (inc cnt))
-
-                  ;; oxygen system found
-                  2 next-loc)))))))))
-
-(defn next-maze-state-wall-hit
-  [attempted-dir-sym maze-state]
-  (let  [moves-stack (:moves-stack maze-state)
-         loc (:loc maze-state)
-         idx (dec (count moves-stack))
-         walls (:walls maze-state)
-         popped-avail-moves (pop (:avail-moves (nth moves-stack idx)))]
-    (-> maze-state
-        (assoc :walls (conj walls (next-loc loc attempted-dir-sym)))
-        (assoc-in [:moves-stack idx :avail-moves] popped-avail-moves))))
-
-(defn next-maze-state-move-success
-  [dir-sym maze-state]
-  (let  [moves-stack (:moves-stack maze-state)
-         loc (:loc maze-state)
-         visited (:visited maze-state)
-         idx (dec (count moves-stack))
-         popped-avail-moves (pop (:avail-moves (nth moves-stack idx)))
-         next-maze-state (assoc-in maze-state [:moves-stack idx :avail-moves] popped-avail-moves)]
-    (-> next-maze-state
-        (assoc :moves-stack (conj (:moves-stack next-maze-state) (next-move dir-sym)))
-        (assoc :visited (conj visited loc))
-        (assoc :loc (next-loc loc dir-sym)))))
-
-(defn repair-oxygen-system
-  "Executes the intcode computer using the given program to direct the droid to fix the oxygen system."
-  [prog-str cnt]
-  (loop [prog (vec (map #(Integer/parseInt %) (str/split prog-str #",")))
-         i-ptr 0
-         rel-base 0
-         maze-state {#_:done #_false
-                     :walls #{}
-                     :visited #{}
-                     :loc [0 0]
-                     :moves-stack [{:avail-moves [:N :S :W :E]}]}
-         i 0]
-    (when (< i cnt)
-      (let [moves-stack (:moves-stack maze-state)
-            next-move-set (peek moves-stack)]
-        (if (== (count (:avail-moves next-move-set)) 0)
-          (recur prog i-ptr rel-base (assoc maze-state :moves-stack (pop moves-stack)) (inc i))
-          (let [dir-sym (peek (:avail-moves next-move-set))
-                loc (:loc maze-state)
-                walls (:walls maze-state)
-                visited (:visited maze-state)
-                potential-next-loc (next-loc loc dir-sym)
-                input-val (-> MOVES dir-sym :value)]
-            (if (or (contains? walls potential-next-loc)
-                    (contains? visited potential-next-loc))
-              (let [popped-avail-moves (when (>= (count (:avail-moves next-move-set)) 0) (pop (:avail-moves next-move-set)))
-                    idx (dec (count moves-stack))]
-                (recur prog
-                       i-ptr
-                       rel-base
-                       (-> maze-state
-                           (assoc-in [:moves-stack idx :avail-moves] popped-avail-moves))
-                       (inc i)))
-              (let [[prog output _ _ i-ptr rel-base] (intcode prog nil input-val i-ptr nil rel-base)]
-                ;(println "input:" dir-sym ", output:" output ", maze state:" maze-state)
-                (case output
-                  ;; wall hit, position unchanged
-                  0 (recur prog i-ptr rel-base (next-maze-state-wall-hit dir-sym maze-state) (inc i))
-
-                  ;; droid moved 1 step in requested direction
-                  1 (recur prog i-ptr rel-base (next-maze-state-move-success dir-sym maze-state) (inc i))
-
-                  ;; oxygen system found
-                  2 maze-state #_(recur prog i-ptr rel-base (assoc maze-state :done true)))))))))))
+                           (reduce (fn [next-paths nxt-mv] (conj next-paths
+                                                                 {:intcode {:prog nxt-prog
+                                                                            :i-ptr nxt-i-ptr
+                                                                            :rel-base nxt-rel-base}
+                                                                  :to-dir nxt-mv
+                                                                  :steps (inc steps)
+                                                                  :loc next-loc}))
+                                   (pop paths)
+                                   (get-in MOVES [dir-sym :next-moves]))
+                           (inc cnt)))))))))))
