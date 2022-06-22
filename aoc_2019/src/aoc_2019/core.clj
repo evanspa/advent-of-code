@@ -1462,7 +1462,7 @@
       :W [(dec x) y])))
 
 (defn explore-maze-bfs-find-o2
-  [prog limit]
+  [prog]
   (loop [walls #{}
          visited #{}
          paths (queue [{:intcode {:prog prog :i-ptr 0 :rel-base 0}
@@ -1491,7 +1491,7 @@
        :paths paths
        :step-count step-count
        :cnt cnt}
-      (if (or (>= cnt limit) (== (count paths) 0))
+      (if (== (count paths) 0)
         {:o2-loc o2-loc
          :visited visited
          :walls walls
@@ -1547,47 +1547,43 @@
 (defn neighbors
   [loc]
   (let [[x y] loc]
-    #{[x (inc y)] [x (dec y)] [(inc x ) y] [(dec x) y]}))
+    [[x (inc y)] [x (dec y)] [(inc x ) y] [(dec x) y]]))
 
 (defn compute-o2-expansion-time
   [o2-loc walls visited]
-  (loop [spaces-to-fill visited
-         o2-cloud #{o2-loc}
-         minutes 0]
-    (if (empty? spaces-to-fill)
-      (println "Minutes: " minutes)
+  (let [num-spaces-to-fill (count visited)]
+    #_(println "num-spaces-to-fill: " num-spaces-to-fill)
+    (loop [spaces-filled #{}
+           o2-cloud #{o2-loc}
+           minutes 0]
+      (if (== (count spaces-filled) num-spaces-to-fill)
+        (println "Minutes: " minutes)
 
-      ;; we need to remove items from spaces-to-fill; steps should be:
-      ;; 1. remove from spaces-to-fill all of the items in o2-cloud
-      ;; 2. For each item in o2-cloud, add potentially the 4 adjacent locations
-      ;;    and then remove the item.
-      ;; 3. repeat until spaces-to-fill is empty
-
-      (recur (reduce (fn [nxt-spaces-to-fill loc]
-                       (disj nxt-spaces-to-fill loc))
-                     spaces-to-fill
-                     o2-cloud)
-             (filter #(not (contains? walls %)) (into #{} (apply concat (flatten (map neighbors o2-cloud)))))
-             (inc minutes)))
-    )
-  )
+        ;; we need to remove items from spaces-to-fill; steps should be:
+        ;; 1. remove from spaces-to-fill all of the items in o2-cloud
+        ;; 2. For each item in o2-cloud, add potentially the 4 adjacent locations
+        ;;    and then remove the item.
+        ;; 3. repeat until spaces-to-fill is empty
+        (recur (apply conj spaces-filled o2-cloud)
+               (set (filter #(and (not (contains? walls %))
+                                 (not (contains? spaces-filled %)))
+                           (apply concat (map neighbors o2-cloud))))
+               (inc minutes))))))
 
 (defn run-solution-15-p2
-  [limit]
+  []
   (let [{o2-loc :o2-loc
          walls :walls
          visited :visited
          paths :paths
          step-count :step-count
-         cnt :cnt} (explore-maze-bfs-find-o2 input-15 limit)]
+         cnt :cnt} (explore-maze-bfs-find-o2 input-15)]
     (println "cnt: " cnt ", o2-loc: " o2-loc ", step count: " step-count)
     (loop [walls walls
            visited visited
            paths paths
            cnt cnt]
-      (if (>= cnt limit)
-        {:visited visited :cnt cnt}
-        (if (empty? paths)
+      (if (empty? paths)
           (do
             (println "done exploring! count: " cnt)
             (compute-o2-expansion-time o2-loc walls visited))
@@ -1621,4 +1617,4 @@
                                                                   :loc next-loc}))
                                    (pop paths)
                                    (get-in MOVES [dir-sym :next-moves]))
-                           (inc cnt)))))))))))
+                           (inc cnt))))))))))
