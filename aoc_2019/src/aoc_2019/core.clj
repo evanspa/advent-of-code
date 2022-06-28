@@ -1640,9 +1640,13 @@
   [input-signal]
   (map #(output-digit input-signal %) (take (count input-signal) (iterate inc 1))))
 
+(defn fft-phases
+  [input phases]
+  (take (inc phases) (iterate output-signal input)))
+
 (defn fft
   [input phases first-x-digits]
-  (clojure.string/join (map #(char (+ (int \0) %)) (take first-x-digits (last (take (inc phases) (iterate output-signal input)))))))
+  (clojure.string/join (map #(char (+ (int \0) %)) (take first-x-digits (last (fft-phases input phases))))))
 
 (defn run-fft-tests
   []
