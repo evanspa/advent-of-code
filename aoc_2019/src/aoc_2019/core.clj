@@ -1618,3 +1618,38 @@
                                    (pop paths)
                                    (get-in MOVES [dir-sym :next-moves]))
                            (inc cnt))))))))))
+
+(def input-16 (str/trim (slurp (resource "input_16.txt"))))
+
+(def input-16-test "12345678")
+
+(defn str->nums
+  [s]
+  (map #(- (int %) (int \0)) s))
+
+(def base-pattern [0 1 0 -1])
+
+(defn output-digit
+  [input-signal output-idx]
+  (let [sum (reduce + 0 (map * input-signal (drop 1 (flatten (repeat (flatten (map #(repeat output-idx %) base-pattern)))))))]
+    (if (< sum 0)
+      (mod (* -1 sum) 10)
+      (mod sum 10))))
+
+(defn output-signal
+  [input-signal]
+  (map #(output-digit input-signal %) (take (count input-signal) (iterate inc 1))))
+
+(defn fft
+  [input phases first-x-digits]
+  (clojure.string/join (map #(char (+ (int \0) %)) (take first-x-digits (last (take (inc phases) (iterate output-signal input)))))))
+
+(defn run-fft-tests
+  []
+  (println (fft (str->nums "80871224585914546619083218645595") 100 8))
+  (println (fft (str->nums "19617804207202209144916044189917") 100 8))
+  (println (fft (str->nums "69317163492948606335995924319873") 100 8)))
+
+(defn run-solution-16-p1
+  []
+  (println (fft (str->nums input-16) 100 8)))
