@@ -1541,7 +1541,7 @@
          visited :visited
          paths :paths
          step-count :step-count
-         cnt :cnt} (explore-maze-bfs-find-o2 input-15 10000)]
+         cnt :cnt} (explore-maze-bfs-find-o2 input-15)]
     {:o2-loc o2-loc :step-count step-count}))
 
 (defn neighbors
@@ -1657,3 +1657,29 @@
 (defn run-solution-16-p1
   []
   (println (fft (str->nums input-16) 100 8)))
+
+(defn day-16-p2-next-message
+  [message]
+  (loop [next-message (list (last message))
+         i (- (count message) 2)]
+    (if (< i 0)
+      next-message
+      (recur (conj next-message (mod (+ (first next-message) (nth message i)) 10))
+             (dec i)))))
+
+;; Based on solution outlined here: https://work.njae.me.uk/2019/12/20/advent-of-code-2019-day-16/
+(defn fft-fast
+  [input]
+  (let [input-repeated (apply concat (repeat 10000 input))
+        offset (Integer/parseInt (apply str (take 7 input)))
+        offset-input (drop offset input-repeated)]
+    (loop [i 0
+           msg offset-input]
+      (if (== i 100)
+        (take 8 msg)
+        (recur (inc i)
+               (day-16-p2-next-message msg))))))
+
+(defn run-solution-16-p2
+  []
+  (fft-fast input-16))
