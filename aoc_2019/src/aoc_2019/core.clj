@@ -1660,12 +1660,13 @@
 
 (defn day-16-p2-next-message
   [message]
-  (loop [next-message (list (last message))
-         i (- (count message) 2)]
-    (if (< i 0)
-      next-message
-      (recur (conj next-message (mod (+ (first next-message) (nth message i)) 10))
-             (dec i)))))
+  (let [message (vec message)]
+    (loop [next-message (list (last message))
+           i (- (count message) 2)]
+      (if (< i 0)
+        next-message
+        (recur (conj next-message (mod (+ (first next-message) (nth message i)) 10))
+               (dec i))))))
 
 ;; Based on solution outlined here: https://work.njae.me.uk/2019/12/20/advent-of-code-2019-day-16/
 (defn fft-fast
@@ -1678,7 +1679,7 @@
       (if (== i 100)
         (take 8 msg)
         (recur (inc i)
-               (day-16-p2-next-message (vec msg)))))))
+               (day-16-p2-next-message msg))))))
 
 (defn run-solution-16-p2
   []
