@@ -1678,8 +1678,8 @@
       (if (== i 100)
         (take 8 msg)
         (recur (inc i)
-               (day-16-p2-next-message msg))))))
+               (day-16-p2-next-message (vec msg)))))))
 
 (defn run-solution-16-p2
   []
-  (fft-fast input-16))
+  (clojure.string/join (map #(char (+ (int \0) %)) (fft-fast (str->nums input-16)))))
