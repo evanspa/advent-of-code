@@ -469,10 +469,15 @@
                  output-value
                  (+ relative-base (value-param program i param-1-mode 1 relative-base))))))))
 
+(defn csvstr->intcode-prog
+  [prog-str]
+  (indexed (vec (map #(Integer/parseInt %) (str/split prog-str #","))))
+  #_(indexed (vec (map #(str->bigint %) (str/split prog-str #",")))))
+
 (defn run-program
   "Executes the intcode computer using the given program and input."
   [prog-str input]
-  (loop [prog (indexed (vec (map #(str->bigint %) (str/split prog-str #","))))
+  (loop [prog (csvstr->intcode-prog prog-str)
          input input
          instr-ptr 0
          output-value nil
@@ -891,7 +896,7 @@
 (defn paint-hull
   "Executes the intcode computer using the given program and input."
   [prog-str input]
-  (loop [prog (indexed (vec (map #(str->bigint %) (str/split prog-str #","))))
+  (loop [prog (csvstr->intcode-prog prog-str)
          input input
          instr-ptr 0
          output-value nil
@@ -1132,7 +1137,7 @@
 (defn compute-tile-counts
   "Executes the intcode computer using the given program and outputs the number of various tile types encountered."
   [prog-str]
-  (loop [prog (indexed (vec (map #(str->bigint %) (str/split prog-str #","))))
+  (loop [prog (csvstr->intcode-prog prog-str)
          instr-ptr 0
          output-value nil
          relative-base 0
@@ -1205,7 +1210,7 @@
 (defn play-arcade-game
   "Executes the intcode computer using the given program and plays the arcade game."
   [prog-str]
-  (loop [prog (assoc (indexed (vec (map #(str->bigint %) (str/split prog-str #",")))) 0 2) ; start w/2 quarters
+  (loop [prog (assoc (csvstr->intcode-prog prog-str) 0 2) ; start w/2 quarters
          i-ptr 0
          out-val nil
          rel-base 0
@@ -1684,3 +1689,41 @@
 (defn run-solution-16-p2
   []
   (clojure.string/join (map #(char (+ (int \0) %)) (fft-fast (str->nums input-16)))))
+
+(def input-17-str (str/trim (slurp (resource "input_17.txt"))))
+
+(def input-17 (csvstr->intcode-prog input-17-str))
+
+(def vacuum-robot-orientations
+  {118 :down
+   94  :up
+   60  :left
+   62  :right})
+
+(defn calibrate-cameras
+  [scaffolding]
+
+  )
+
+(defn run-solution-17-p1
+  []
+  (loop [prog input-17
+         i-ptr 0
+         rel-base 0
+         halted false
+         row 0
+         col 0
+         scaffolding {}
+         robot-location nil]
+    (if halted
+      (let [calibration (calibrate-cameras scaffolding)]
+        calibration)
+      (let [[prog out-val _ halted i-ptr rel-base] (intcode prog nil nil i-ptr nil rel-base)]
+        (case out-val
+          46 (recur prog i-ptr rel-base halted row (inc col) (assoc scaffolding [row col] ".") robot-location)
+          35 (recur prog i-ptr rel-base halted row (inc col) (assoc scaffolding [row col] "#") robot-location)
+          10 (recur prog i-ptr rel-base halted (inc row) 0 scaffolding robot-location)
+          118
+          94
+          60
+          62 (recur prog i-ptr rel-base halted row (inc col) (assoc scaffolding [row col] "#") [row col]))))))
